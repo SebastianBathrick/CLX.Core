@@ -1,0 +1,62 @@
+## Build artifacts
+bin/
+obj/
+[Bb]uild/
+[Rr]elease/
+[Dd]ebug/
+x64/
+x86/
+out/
+artifacts/
+
+## Visual Studio
+.vs/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.VC.db
+*.VC.VC.opendb
+*.cache
+*.pdb
+*.ipch
+*.opendb
+
+## Visual Studio Code
+.vscode/
+*.code-workspace
+
+## Dotnet CLI
+project.lock.json
+project.fragment.lock.json
+
+## NuGet
+*.nupkg
+*.snupkg
+packages/
+*.nuspec
+nuget.exe
+
+## Test & analysis results
+TestResult*/
+*.VisualState.xml
+*.coverage*
+*.trx
+*.log
+
+## Database files
+*.dbmdl
+*.ldf
+*.mdf
+*.sqlite
+
+## Publish profiles
+**/[Pp]ublishProfiles/
+
+## Others
+*.tmp
+*.bak
+*.swp
+*.orig
+*.rej
+
