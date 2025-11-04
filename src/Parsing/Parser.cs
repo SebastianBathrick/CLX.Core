@@ -1,6 +1,7 @@
 ﻿using CLX.Core.Nodes;
 using CLX.Core.Commands;
 using System.Text.RegularExpressions;
+using System.Reflection;
 
 namespace CLX.Core.Parsing;
 
@@ -85,7 +86,7 @@ partial class Parser : IParser
 
         if (flagAttrs == null)
         {
-            errorMessage = $"Flag {givenName} does not accept values";
+            errorMessage = $"Flag {givenName} is not supported for this command";
             return false;
         }
         
@@ -148,12 +149,16 @@ partial class Parser : IParser
 
     static FlagAttributes? GetFlagAttributes(ICommand cmd)
     {
-        var attrArray = cmd.GetType().GetCustomAttributes(typeof(FlagAttribute), false);
-        var flagAttrsList = new List<FlagAttribute>(attrArray.Length);
+        var type = cmd.GetType();
+        var flagAttrsList = new List<FlagAttribute>();
 
-        foreach (var attr in attrArray)
-            if (attr is FlagAttribute flagAttr)
-                flagAttrsList.Add(flagAttr);
+        // Collect FlagAttribute declared on properties (public/non-public)
+        foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+        {
+            foreach (var attr in prop.GetCustomAttributes(typeof(FlagAttribute), inherit: true))
+                if (attr is FlagAttribute flagAttr)
+                    flagAttrsList.Add(flagAttr);
+        }
 
         return flagAttrsList.Count > 0 ? flagAttrsList.AsReadOnly() : null;
     }

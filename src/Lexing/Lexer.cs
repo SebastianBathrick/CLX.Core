@@ -16,7 +16,7 @@ partial class Lexer : ILexer
         while (GetCommandNode(args, ref argIndex, cmdNames) is CommandNode cmd)
             cmdList.Add(cmd);
 
-        if (argIndex < args.Length - 1)
+        if (argIndex < args.Length)
         {
             nodes = [];
             errorArg = args[argIndex];
@@ -97,15 +97,20 @@ partial class Lexer : ILexer
         if (arg[flagNameIndex++] != FLAG_NAME_PREFIX)
             return false;
 
-        // The full name will use two '-' and the alternative alias will use just one
+        // Long form: starts with "--" and then kebab-case alias
         if (arg[flagNameIndex] == FLAG_NAME_PREFIX)
+        {
             flagNameIndex++;
-        // Alternative aliases can only contain one alphabetic character after the dash
-        else if (arg.Length > FLAG_ALT_NAME_MAX_LEN)
+            // Evaluate the alias (e.g., "--flag" alias would be "flag")
+            return IsValidAlias(arg, flagNameIndex);
+        }
+
+        // Short form: "-x" must be exactly one alphabetic character
+        if (arg.Length != 2)
             return false;
 
-        // Evaluate the alias (ex. "--flag" alias would be "flag", hence the index argument)
-        return IsValidAlias(arg, flagNameIndex);
+        var shortAlias = arg[flagNameIndex];
+        return shortAlias >= 'a' && shortAlias <= 'z';
     }
 
     static bool IsValidAlias(string arg, int indexOffset = 0)
