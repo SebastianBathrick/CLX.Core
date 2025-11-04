@@ -45,7 +45,7 @@ public sealed class ParserAndLexerBehaviorTests
         var code = rt.Run([DbRootCommand.NameConst, "unknownpiece"]);
 
         Assert.Equal(-1, code);
-        Assert.Contains("Unexpected argument", err.ToString());
+        Assert.Contains("does not accept positional arguments", err.ToString());
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class ParserAndLexerBehaviorTests
         var code = rt.Run([MatrixCommand.NameConst, "-N"]);
 
         Assert.Equal(-1, code);
-        Assert.Contains("Unexpected argument", err.ToString());
+        Assert.Contains("does not accept positional arguments", err.ToString());
     }
 
     [Fact]
@@ -231,6 +231,61 @@ public sealed class ParserAndLexerBehaviorTests
         Assert.Equal(-1, code);
         Assert.Contains("does not accept flags", err.ToString());
     }
+
+    [Fact]
+    public void Positional_Arguments_Bind_And_Cast()
+    {
+        ArgsState.Reset();
+        var err = new TestWriter();
+        var rt = new ClxRuntime(err);
+
+        var code = rt.Run([ArgsCommand.NameConst, "file.txt", "42"]);
+
+        Assert.Equal(0, code);
+        Assert.Equal("file.txt", ArgsState.Path);
+        Assert.Equal(42, ArgsState.Count);
+        Assert.Empty(ArgsState.Rest);
+        // Context helper
+        Assert.True(ArgsState.ReadViaContext);
+    }
+
+    [Fact]
+    public void Positional_Variadic_Collects_Remainder()
+    {
+        ArgsState.Reset();
+        var err = new TestWriter();
+        var rt = new ClxRuntime(err);
+
+        var code = rt.Run([ArgsCommand.NameConst, "p", "1", "a", "b"]);
+
+        Assert.Equal(0, code);
+        Assert.Equal(new[] { "a", "b" }, ArgsState.Rest);
+    }
+
+    [Fact]
+    public void Sentinel_DoubleDash_Stops_Flag_Parsing()
+    {
+        ArgsState.Reset();
+        var err = new TestWriter();
+        var rt = new ClxRuntime(err);
+
+        var code = rt.Run([ArgsCommand.NameConst, "p", "7", "--", "-n", "5", "--x"]);
+
+        Assert.Equal(0, code);
+        Assert.Equal(new[] { "-n", "5", "--x" }, ArgsState.Rest);
+    }
+
+    [Fact]
+    public void Unexpected_Positionals_Error_When_No_Arguments_Defined()
+    {
+        var err = new TestWriter();
+        var rt = new ClxRuntime(err);
+
+        var code = rt.Run([NoArgsCommand.NameConst, "extra"]);
+
+        Assert.Equal(-1, code);
+        Assert.Contains("does not accept positional arguments", err.ToString());
+    }
 }
 
 sealed class TestWriter : ITextWriter
@@ -353,6 +408,65 @@ sealed class NoFlagsCommand : ICommand
     public const string NameConst = "noflags";
     public string Name => NameConst;
     public string Description => "no flags";
+    public ITextWriter Output { get; } = NullTextWriter.Instance;
+    public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
+    public string WorkingDirectory { get; } = string.Empty;
+    public int Execute(ICommandContext context, string workingDirectory = "") => 0;
+}
+
+static class ArgsState
+{
+    public static string Path = string.Empty;
+    public static int Count = 0;
+    public static List<string> Rest = new();
+    public static bool ReadViaContext = false;
+    public static void Reset()
+    {
+        Path = string.Empty;
+        Count = 0;
+        Rest.Clear();
+        ReadViaContext = false;
+    }
+}
+
+sealed class ArgsCommand : ICommand
+{
+    public const string NameConst = "args";
+    public string Name => NameConst;
+    public string Description => "args";
+    public ITextWriter Output { get; } = NullTextWriter.Instance;
+    public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
+    public string WorkingDirectory { get; } = string.Empty;
+
+    [Argument(0, Name = "path", IsRequired = true, MinValues = 1, MaxValues = 1)]
+    private string Path { get; set; } = string.Empty;
+
+    [Argument(1, Name = "count", IsRequired = true, MinValues = 1, MaxValues = 1)]
+    private int Count { get; set; }
+
+    [Argument(2, Name = "rest", MinValues = 0, MaxValues = int.MaxValue)]
+    private List<string> Rest { get; set; } = new();
+
+    [Flag("toggle", MinValues = 0, MaxValues = 0)]
+    private int _toggle { get; set; }
+
+    public int Execute(ICommandContext context, string workingDirectory = "")
+    {
+        ArgsState.Path = Path;
+        ArgsState.Count = Count;
+        ArgsState.Rest = Rest;
+        // Verify typed accessors
+        if (ICommandContext.TryGetArgument<int>(context, 1, out var cnt))
+            ArgsState.ReadViaContext = cnt == Count;
+        return 0;
+    }
+}
+
+sealed class NoArgsCommand : ICommand
+{
+    public const string NameConst = "noargs";
+    public string Name => NameConst;
+    public string Description => "no args";
     public ITextWriter Output { get; } = NullTextWriter.Instance;
     public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
     public string WorkingDirectory { get; } = string.Empty;

@@ -41,11 +41,35 @@ partial class Lexer : ILexer
         argIndex += tokensConsumed;
 
         var flagNodes = new List<FlagNode>();
+        var positionalNodes = new List<ValueNode>();
 
-        while (GetFlagNode(args, ref argIndex, cmdNames) is FlagNode flagNode)
-            flagNodes.Add(flagNode);
+        var stopOptions = false; // true after encountering "--"
 
-        return new CommandNode(cmdName, flagNodes.AsReadOnly());
+        while (argIndex < args.Length)
+        {
+            // If next tokens begin a new composite command, stop this command's scan
+            if (StartsWithCompositeCommandName(args, argIndex, cmdNames))
+                break;
+
+            var token = args[argIndex].Trim();
+
+            // `--` stops option parsing; everything after is positional
+            if (!stopOptions && token == "--") { stopOptions = true; argIndex++; continue; }
+
+            // If options are still being parsed and this looks like a flag, parse it
+            if (!stopOptions && IsValidFlagSyntax(token))
+            {
+                var flagNode = GetFlagNode(args, ref argIndex, cmdNames);
+                if (flagNode != null) { flagNodes.Add(flagNode); continue; }
+                // If a token looked like a flag but didn't parse, treat it as positional
+            }
+
+            // Otherwise, treat as a positional value (including tokens that start with '-')
+            positionalNodes.Add(new ValueNode(token));
+            argIndex++;
+        }
+
+        return new CommandNode(cmdName, flagNodes.AsReadOnly(), positionalNodes.AsReadOnly());
     }
 
     static FlagNode? GetFlagNode(string[] args, ref int argIndex, HashSet<string> cmdNames)

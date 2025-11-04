@@ -29,7 +29,7 @@ public sealed class RuntimeTests
         var code = runtime.Run([OkCommand.CommandName, "-ab"]);
 
         Assert.Equal(-1, code);
-        Assert.Contains("Unexpected argument", err.ToString());
+        Assert.Contains("does not accept positional arguments", err.ToString());
     }
 
     [Fact]

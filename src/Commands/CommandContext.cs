@@ -6,13 +6,15 @@ public sealed record CommandContext : ICommandContext
         IReadOnlyList<IFlagObject> flags,
         ITextWriter output,
         ITextWriter errorOutput,
-        string workingDirectory)
+        string workingDirectory,
+        IReadOnlyList<string>? arguments = null)
     {
         CommandName = commandName;
         Flags = flags;
         Output = output;
         ErrorOutput = errorOutput;
         WorkingDirectory = workingDirectory;
+        Arguments = arguments ?? Array.Empty<string>();
     }
 
 
@@ -21,4 +23,5 @@ public sealed record CommandContext : ICommandContext
     public ITextWriter Output { get; }
     public ITextWriter ErrorOutput { get; }
     public string WorkingDirectory { get; }
+    public IReadOnlyList<string> Arguments { get; }
 }

@@ -59,11 +59,6 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
             _errorWriter?.WriteLine($"Command '{failedCmdName}' failed with exit code {exitCode}");
             return ERROR_EXIT_CODE;
         }
-        catch (ClxCommandExecuteError parseEx)
-        {
-            _errorWriter?.WriteLine(parseEx.Message);
-            _exception = parseEx;
-        }
         catch (Exception ex)
         {
             _errorWriter?.WriteLine($"Unhandled exception: {ex.Message}");
@@ -81,6 +76,15 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
         {
             // All the contexts have already been validated so no checking is necessary here
             var command = commands[context.CommandName];
+
+            // Bind positional arguments to the command instance before execution
+            if (!ArgumentBinder.TryBind(command, context, out var bindError))
+            {
+                context.ErrorOutput.WriteLine(bindError);
+                failedCommandName = context.CommandName;
+                return ERROR_EXIT_CODE;
+            }
+
             var exitCode = command.Execute(context, workingDirectory);
 
             if (exitCode == SUCCESS_EXIT_CODE)
@@ -129,11 +133,5 @@ partial class ClxRuntime
 {
     const int SUCCESS_EXIT_CODE = 0;
     const int ERROR_EXIT_CODE = -1;
-}
-
-public sealed class ClxCommandExecuteError : AggregateException
-{
-    public ClxCommandExecuteError(IEnumerable<Exception> innerExceptions)
-        : base($"Command Execute(ICommandContext) exception(s) thrown:\n{string.Join("\n", innerExceptions)}", innerExceptions) { }
 }
 

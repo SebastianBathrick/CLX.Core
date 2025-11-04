@@ -106,7 +106,7 @@ sealed class HelpCommand : ICommand
     /// subcommands. </summary>
     private static void WriteCommandDetails(ITextWriter output, CommandTreeNode node)
     {
-        WriteUsage(output, node.FullPath);
+        WriteUsage(output, node);
 
         if (node.Command != null)
         {
@@ -116,15 +116,37 @@ sealed class HelpCommand : ICommand
                 output.WriteLine(desc);
 
             WriteFlags(output, node.Command);
+            WriteArguments(output, node.Command);
+            output.WriteLine("\nUse '--' to stop parsing flags.");
         }
 
         WriteSubcommands(output, node);
     }
 
     /// <summary> Write the usage line for a command path. </summary>
-    private static void WriteUsage(ITextWriter output, string path)
+    private static void WriteUsage(ITextWriter output, CommandTreeNode node)
     {
-        output.WriteLine($"Usage: <tool> {path} [flags]\n");
+        var argsUsage = string.Empty;
+        if (node.Command != null)
+        {
+            var args = GetArgumentAttributes(node.Command);
+            if (args != null && args.Count > 0)
+            {
+                var parts = new List<string>();
+                foreach (var a in args.OrderBy(a => a.Index))
+                {
+                    var name = string.IsNullOrWhiteSpace(a.Name) ? $"arg{a.Index}" : a.Name!;
+                    var isVariadic = a.MaxValues == int.MaxValue;
+                    var isRequired = a.IsRequired || a.MinValues > 0;
+                    if (isVariadic)
+                        parts.Add(isRequired ? $"<{name}...>" : $"[{name}...]");
+                    else
+                        parts.Add(isRequired ? $"<{name}>" : $"[{name}]");
+                }
+                argsUsage = " " + string.Join(' ', parts);
+            }
+        }
+        output.WriteLine($"Usage: <tool> {node.FullPath}{argsUsage} [flags]\n");
     }
 
     /// <summary> Write a table of flags for the given command, if any. </summary>
@@ -136,6 +158,18 @@ sealed class HelpCommand : ICommand
             output.WriteLine("\nFlags:");
             foreach (var fa in flags)
                 output.WriteLine(FormatFlagLine(fa));
+        }
+    }
+
+    /// <summary> Write a table of positional arguments for the given command, if any. </summary>
+    private static void WriteArguments(ITextWriter output, ICommand command)
+    {
+        var args = GetArgumentAttributes(command);
+        if (args?.Count > 0)
+        {
+            output.WriteLine("\nArguments:");
+            foreach (var aa in args.OrderBy(a => a.Index))
+                output.WriteLine(FormatArgumentLine(aa));
         }
     }
 
@@ -212,6 +246,30 @@ sealed class HelpCommand : ICommand
                     list.Add(fa);
         }
         return list.Count > 0 ? list.AsReadOnly() : null;
+    }
+
+    private static IReadOnlyList<ArgumentAttribute>? GetArgumentAttributes(ICommand cmd)
+    {
+        var type = cmd.GetType();
+        var list = new List<ArgumentAttribute>();
+        foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
+        {
+            foreach (var attr in prop.GetCustomAttributes(typeof(ArgumentAttribute), inherit: true))
+                if (attr is ArgumentAttribute aa)
+                    list.Add(aa);
+        }
+        if (list.Count == 0) return null;
+        list.Sort((a, b) => a.Index.CompareTo(b.Index));
+        return list.AsReadOnly();
+    }
+
+    private static string FormatArgumentLine(ArgumentAttribute aa)
+    {
+        var name = string.IsNullOrWhiteSpace(aa.Name) ? $"arg{aa.Index}" : aa.Name!;
+        var values = aa.MinValues == aa.MaxValues ? aa.MinValues.ToString() : $"{aa.MinValues}..{aa.MaxValues}";
+        var req = aa.IsRequired || aa.MinValues > 0 ? "(required)" : string.Empty;
+        var regex = string.IsNullOrEmpty(aa.ValueRegexPattern) ? string.Empty : $" [regex: {aa.ValueRegexPattern}]";
+        return $"  {aa.Index}: {name}\tvalues: {values} {req}{regex}";
     }
 }
 
