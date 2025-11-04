@@ -201,7 +201,7 @@ dotnet test CLX.Core.sln
 
 ---
 
-## Limitations (short) & roadmap
+## Limitations & roadmap
 - Flags must follow the full command path (no flags between parent/child)
 - No global/parent flags; flags are scoped to the matched command
 - No positional arguments (all inputs are via flags)
