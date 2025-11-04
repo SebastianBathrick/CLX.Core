@@ -8,6 +8,47 @@ namespace CLX.Tests;
 public sealed class ParserAndLexerBehaviorTests
 {
     [Fact]
+    public void Composite_LongestMatch_IsChosen()
+    {
+        var err = new TestWriter();
+        var rt = new ClxRuntime(err);
+
+        CompositeState.Reset();
+        var code = rt.Run([DbRootCommand.NameConst, "migrate", "run", "--dry-run"]);
+
+        Assert.Equal(0, code);
+        Assert.Equal("db migrate run", CompositeState.LastExecuted);
+        Assert.True(CompositeState.DryRun);
+    }
+
+    [Fact]
+    public void Composite_Overlapping_Picks_Longest_Then_Allows_Next_Command()
+    {
+        var err = new TestWriter();
+        var rt = new ClxRuntime(err);
+
+        CompositeState.Reset();
+        // First match: "db migrate" (longest before flags), then next command: "db" afterwards
+        var code = rt.Run([DbRootCommand.NameConst, "migrate", "--fast", DbRootCommand.NameConst]);
+
+        Assert.Equal(0, code);
+        Assert.Equal(new[] { "db migrate", "db" }, CompositeState.ExecutionLog.ToArray());
+        Assert.True(CompositeState.Fast);
+    }
+
+    [Fact]
+    public void Unknown_Subcommand_Part_Is_Error()
+    {
+        var err = new TestWriter();
+        var rt = new ClxRuntime(err);
+
+        var code = rt.Run([DbRootCommand.NameConst, "unknownpiece"]);
+
+        Assert.Equal(-1, code);
+        Assert.Contains("Unexpected argument", err.ToString());
+    }
+
+    [Fact]
     public void LongFlag_KebabCase_Valid()
     {
         MatrixCommand.Reset();
@@ -32,7 +73,7 @@ public sealed class ParserAndLexerBehaviorTests
 
         Assert.Equal(-1, code);
         var msg = err.ToString();
-        Assert.True(msg.Contains("Flag num") && msg.Contains("must have"));
+        Assert.True(msg.Contains("Flag '--num'") && msg.Contains("expects"));
     }
 
     [Fact]
@@ -71,7 +112,7 @@ public sealed class ParserAndLexerBehaviorTests
         var code = rt.Run([MatrixCommand.NameConst, "--num", "abc"]);
 
         Assert.Equal(-1, code);
-        Assert.Contains("does not match regex", err.ToString());
+        Assert.Contains("Invalid value 'abc'", err.ToString());
     }
 
     [Fact]
@@ -83,7 +124,7 @@ public sealed class ParserAndLexerBehaviorTests
         var code = rt.Run([MatrixCommand.NameConst, "--num", "1", "--items"]);
 
         Assert.Equal(-1, code);
-        Assert.Contains("must have 1 to 2 values", err.ToString());
+        Assert.Contains("expects 1..2 values", err.ToString());
     }
 
     [Fact]
@@ -95,7 +136,7 @@ public sealed class ParserAndLexerBehaviorTests
         var code = rt.Run([MatrixCommand.NameConst, "--num", "1", "--items", "a", "b", "c"]);
 
         Assert.Equal(-1, code);
-        Assert.Contains("must have 1 to 2 values", err.ToString());
+        Assert.Contains("expects 1..2 values", err.ToString());
     }
 
     [Fact]
@@ -109,7 +150,7 @@ public sealed class ParserAndLexerBehaviorTests
 
         var codeFail = rt.Run([MatrixCommand.NameConst, "--num", "1", "--toggle", "x"]);
         Assert.Equal(-1, codeFail);
-        Assert.Contains("must have 0 to 0 values", err.ToString());
+        Assert.Contains("expects 0..0 values", err.ToString());
     }
 
     [Fact]
@@ -123,7 +164,7 @@ public sealed class ParserAndLexerBehaviorTests
 
         Assert.Equal(-1, code);
         var msg = err.ToString();
-        Assert.True(msg.Contains("Flag num") && msg.Contains("must have"));
+        Assert.True(msg.Contains("Flag '--num'") && msg.Contains("expects"));
     }
 
     [Fact]
@@ -188,7 +229,7 @@ public sealed class ParserAndLexerBehaviorTests
         var code = rt.Run([NoFlagsCommand.NameConst, "--x"]);
 
         Assert.Equal(-1, code);
-        Assert.Contains("is not supported for this command", err.ToString());
+        Assert.Contains("does not accept flags", err.ToString());
     }
 }
 
@@ -316,6 +357,94 @@ sealed class NoFlagsCommand : ICommand
     public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
     public string WorkingDirectory { get; } = string.Empty;
     public int Execute(ICommandContext context, string workingDirectory = "") => 0;
+}
+
+static class CompositeState
+{
+    public static string LastExecuted = string.Empty;
+    public static List<string> ExecutionLog { get; } = new();
+    public static bool DryRun;
+    public static bool Fast;
+    public static void Reset()
+    {
+        LastExecuted = string.Empty;
+        ExecutionLog.Clear();
+        DryRun = false;
+        Fast = false;
+    }
+}
+
+sealed class DbRootCommand : ICommand
+{
+    public const string NameConst = "db";
+    public string Name => NameConst;
+    public string Description => "db root";
+    public ITextWriter Output { get; } = NullTextWriter.Instance;
+    public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
+    public string WorkingDirectory { get; } = string.Empty;
+    public int Execute(ICommandContext context, string workingDirectory = "")
+    {
+        CompositeState.LastExecuted = Name;
+        CompositeState.ExecutionLog.Add(Name);
+        return 0;
+    }
+}
+
+sealed class DbMigrateCommand : ICommand
+{
+    public const string NameConst = "db migrate";
+    public string Name => NameConst;
+    public string Description => "db migrate";
+    public ITextWriter Output { get; } = NullTextWriter.Instance;
+    public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
+    public string WorkingDirectory { get; } = string.Empty;
+
+    [Flag("fast", AlternateName = "f", MinValues = 0, MaxValues = 0)]
+    private int _sink { get; set; }
+
+    public int Execute(ICommandContext context, string workingDirectory = "")
+    {
+        CompositeState.LastExecuted = Name;
+        CompositeState.ExecutionLog.Add(Name);
+        CompositeState.Fast = ICommandContext.TryGetFlag<IFlagObject>(context, "fast", out _);
+        return 0;
+    }
+}
+
+sealed class DbMigrateRunCommand : ICommand
+{
+    public const string NameConst = "db migrate run";
+    public string Name => NameConst;
+    public string Description => "db migrate run";
+    public ITextWriter Output { get; } = NullTextWriter.Instance;
+    public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
+    public string WorkingDirectory { get; } = string.Empty;
+
+    [Flag("dry-run", AlternateName = "d", MinValues = 0, MaxValues = 0)]
+    private int _sink { get; set; }
+
+    public int Execute(ICommandContext context, string workingDirectory = "")
+    {
+        CompositeState.LastExecuted = Name;
+        CompositeState.ExecutionLog.Add(Name);
+        CompositeState.DryRun = ICommandContext.TryGetFlag<IFlagObject>(context, "dry-run", out _);
+        return 0;
+    }
+}
+
+sealed class DbOnlyCommand : ICommand
+{
+    public string Name => DbRootCommand.NameConst;
+    public string Description => "db only";
+    public ITextWriter Output { get; } = NullTextWriter.Instance;
+    public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
+    public string WorkingDirectory { get; } = string.Empty;
+    public int Execute(ICommandContext context, string workingDirectory = "")
+    {
+        CompositeState.LastExecuted = Name;
+        CompositeState.ExecutionLog.Add(Name);
+        return 0;
+    }
 }
 
 

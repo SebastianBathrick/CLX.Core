@@ -33,12 +33,12 @@ partial class Lexer : ILexer
         if (argIndex >= args.Length)
             return null;
 
-        var cmdName = args[argIndex].Trim();
-
-        if (!IsValidAlias(cmdName) || !cmdNames.Contains(cmdName))
+        // Try to read a composite command name greedily (space-joined tokens)
+        if (!TryReadCompositeCommandName(args, argIndex, cmdNames, out var compositeName, out var tokensConsumed))
             return null;
 
-        argIndex++;
+        var cmdName = compositeName;
+        argIndex += tokensConsumed;
 
         var flagNodes = new List<FlagNode>();
 
@@ -78,12 +78,65 @@ partial class Lexer : ILexer
 
         var argVal = args[argIndex].Trim();
 
-        if (cmdNames.Contains(argVal) || IsValidFlagSyntax(argVal))
+        // Stop if next tokens begin a (possibly composite) command name or a new flag
+        if (StartsWithCompositeCommandName(args, argIndex, cmdNames) || IsValidFlagSyntax(argVal))
             return null;
 
         argIndex++;
 
         return new ValueNode(argVal);
+    }
+
+    static bool StartsWithCompositeCommandName(string[] args, int index, HashSet<string> cmdNames)
+        => TryReadCompositeCommandName(args, index, cmdNames, out _, out var consumed) && consumed > 0;
+
+    static bool TryReadCompositeCommandName(
+        string[] args,
+        int startIndex,
+        HashSet<string> cmdNames,
+        out string compositeName,
+        out int tokensConsumed)
+    {
+        compositeName = string.Empty;
+        tokensConsumed = 0;
+
+        if (startIndex >= args.Length)
+            return false;
+
+        string? bestMatch = null;
+        var bestCount = 0;
+
+        // Greedily join tokens with space, stopping at first flag token
+        var current = new List<string>();
+
+        for (var i = startIndex; i < args.Length; i++)
+        {
+            var token = args[i].Trim();
+
+            // A flag cannot be part of a command name
+            if (IsValidFlagSyntax(token))
+                break;
+
+            // Command name parts must be valid aliases (lowercase letters and '-')
+            if (!IsValidAlias(token))
+                break;
+
+            current.Add(token);
+            var joined = string.Join(' ', current);
+
+            if (cmdNames.Contains(joined))
+            {
+                bestMatch = joined;
+                bestCount = current.Count;
+            }
+        }
+
+        if (bestCount == 0 || string.IsNullOrEmpty(bestMatch))
+            return false;
+
+        compositeName = bestMatch;
+        tokensConsumed = bestCount;
+        return true;
     }
 
     static bool IsValidFlagSyntax(string arg)

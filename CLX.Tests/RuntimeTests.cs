@@ -58,7 +58,7 @@ public sealed class RuntimeTests
         var code = runtime.Run([RequiredFlagCommand.CommandName]);
 
         Assert.Equal(-1, code);
-        Assert.Contains("Flag num is required", err.ToString());
+        Assert.Contains("Missing required flag", err.ToString());
         Assert.False(RequiredFlagCommand.Executed);
     }
 

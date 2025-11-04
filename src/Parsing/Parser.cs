@@ -14,6 +14,9 @@ using FlagAttributes = IReadOnlyList<FlagAttribute>;
 /// throwing, returning descriptive error messages on failure. </remarks>
 partial class Parser : IParser
 {
+    readonly Dictionary<Type, FlagAttributes> _flagAttrsCache = new();
+    readonly Dictionary<string, Regex> _regexCache = new();
+
     public bool TryCreateCommandContexts(IReadOnlyList<CommandNode> cmdNodes, ValidCommands cmds, out Contexts contexts, out string errorMessage)
     {
         contexts = [];
@@ -37,7 +40,7 @@ partial class Parser : IParser
                 ICommand.Execute method to use */
 
                 // Valid flags have the correct number of values & values that match any required regex 
-                if (!IsValidFlag(flagNode, flagAttrs, out var flagAttr, out errorMessage))
+                if (!IsValidFlag(cmdNode.Name, flagNode, flagAttrs, out var flagAttr, out errorMessage))
                     return false;
 
                 if (flagAttr == null)
@@ -53,18 +56,18 @@ partial class Parser : IParser
 
             var reqFlagAttrs = flagAttrs?.Where(attr => attr.IsRequired).ToList() ?? [];
 
-            foreach(var attr in reqFlagAttrs)
-                if(!flagObjList.Any(obj => obj.Name == attr.Name || obj.AlternateName == attr.Name))
+            foreach (var attr in reqFlagAttrs)
+                if (!flagObjList.Any(obj => obj.Name == attr.Name || obj.AlternateName == attr.Name))
                 {
-                    errorMessage = $"Flag {attr.Name} is required";
+                    errorMessage = $"Missing required flag '--{attr.Name}' for '{cmdNode.Name}'";
                     return false;
                 }
 
             var context = new CommandContext(
                 cmdNode.Name, 
                 flagObjList.AsReadOnly(), 
-                cmd.Output, 
-                cmd.ErrorOutput, 
+                cmd.Output ?? NullTextWriter.Instance, 
+                cmd.ErrorOutput ?? NullTextWriter.Instance, 
                 cmd.WorkingDirectory);
     
             contextList.Add(context);
@@ -74,19 +77,19 @@ partial class Parser : IParser
         return true;
     }
 
-    static bool IsValidFlag(
-        FlagNode flagNode, 
-        FlagAttributes? flagAttrs, 
-        out FlagAttribute? flagAttr, 
-        out string errorMessage
-        )
+    bool IsValidFlag(
+        string commandName,
+        FlagNode flagNode,
+        FlagAttributes? flagAttrs,
+        out FlagAttribute? flagAttr,
+        out string errorMessage)
     {
         flagAttr = null;
         var givenName = flagNode.GivenName;
 
         if (flagAttrs == null)
         {
-            errorMessage = $"Flag {givenName} is not supported for this command";
+            errorMessage = $"Command '{commandName}' does not accept flags: '{FormatFlagForDisplay(givenName)}'";
             return false;
         }
         
@@ -94,13 +97,13 @@ partial class Parser : IParser
 
         if (flagAttr == null)
         {
-            errorMessage = $"Flag {givenName} is not a valid flag";
+            errorMessage = $"Unknown flag '{FormatFlagForDisplay(givenName)}' for '{commandName}'";
             return false;
         }
 
         if (flagNode.ValueNodes.Count < flagAttr.MinValues || flagNode.ValueNodes.Count > flagAttr.MaxValues)
         {
-            errorMessage = $"Flag {givenName} must have {flagAttr.MinValues} to {flagAttr.MaxValues} values";
+            errorMessage = $"Flag '--{flagAttr.Name}' for '{commandName}' expects {flagAttr.MinValues}..{flagAttr.MaxValues} values";
             return false;
         }
 
@@ -110,14 +113,14 @@ partial class Parser : IParser
         return true;
     }
     
-    static bool IsValidValues(IReadOnlyList<ValueNode> valueNodes, FlagAttribute flagAttr, out string errorMessage)
+    bool IsValidValues(IReadOnlyList<ValueNode> valueNodes, FlagAttribute flagAttr, out string errorMessage)
     {
         errorMessage = string.Empty;
 
         if (flagAttr.ValueRegexPattern == null)
             return true;
 
-        var regex = new Regex(flagAttr.ValueRegexPattern);
+        var regex = GetOrCreateRegex(flagAttr.ValueRegexPattern);
 
         foreach (var value in valueNodes)
         {
@@ -128,7 +131,7 @@ partial class Parser : IParser
             if (regex.IsMatch(valueNode.Value))
                 continue;
 
-            errorMessage = $"Flag {flagAttr.Name} value {valueNode.Value} does not match regex {flagAttr.ValueRegexPattern}";
+            errorMessage = $"Invalid value '{valueNode.Value}' for '--{flagAttr.Name}': must match {flagAttr.ValueRegexPattern}";
             return false;
         }
 
@@ -147,12 +150,15 @@ partial class Parser : IParser
         return null;
     }
 
-    static FlagAttributes? GetFlagAttributes(ICommand cmd)
+    FlagAttributes? GetFlagAttributes(ICommand cmd)
     {
         var type = cmd.GetType();
+
+        if (_flagAttrsCache.TryGetValue(type, out var cached))
+            return cached;
+
         var flagAttrsList = new List<FlagAttribute>();
 
-        // Collect FlagAttribute declared on properties (public/non-public)
         foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
             foreach (var attr in prop.GetCustomAttributes(typeof(FlagAttribute), inherit: true))
@@ -160,7 +166,10 @@ partial class Parser : IParser
                     flagAttrsList.Add(flagAttr);
         }
 
-        return flagAttrsList.Count > 0 ? flagAttrsList.AsReadOnly() : null;
+        var result = flagAttrsList.Count > 0 ? flagAttrsList.AsReadOnly() : null;
+        if (result != null)
+            _flagAttrsCache[type] = result;
+        return result;
     }
 
     static IReadOnlyList<string> GetFlagValues(IReadOnlyList<ValueNode> valueNodes)
@@ -174,5 +183,17 @@ partial class Parser : IParser
             values.Add(valueNode.Value);
 
         return values.AsReadOnly();
+    }
+
+    static string FormatFlagForDisplay(string givenName) =>
+        givenName.Length == 1 ? $"-{givenName}" : $"--{givenName}";
+
+    Regex GetOrCreateRegex(string pattern)
+    {
+        if (_regexCache.TryGetValue(pattern, out var rx))
+            return rx;
+        rx = new Regex(pattern, RegexOptions.Compiled);
+        _regexCache[pattern] = rx;
+        return rx;
     }
 }
