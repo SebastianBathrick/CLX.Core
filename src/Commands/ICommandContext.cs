@@ -47,9 +47,7 @@ public interface ICommandContext
     static bool TryGetArgument<T>(ICommandContext context, int index, out T value)
     {
         value = default!;
-        if (index < 0 || index >= context.Arguments.Count)
-            return false;
-        return TypeConversion.TryConvert<T>(context.Arguments[index], out value, out _);
+        return index >= 0 && index < context.Arguments.Count && TypeConversion.TryConvert<T>(context.Arguments[index], out value, out _);
     }
 
     /// <summary> Try to read all remaining positional arguments from a start index as a typed list. </summary>

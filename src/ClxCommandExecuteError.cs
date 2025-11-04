@@ -1,6 +1,4 @@
-﻿using CLX.Core.Commands;
-
-namespace CLX.Core;
+﻿namespace CLX.Core;
 
 public sealed class ClxCommandExecuteError : AggregateException
 {

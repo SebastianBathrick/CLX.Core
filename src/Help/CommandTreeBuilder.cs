@@ -1,5 +1,4 @@
 using CLX.Core.Commands;
-using System.Reflection;
 
 namespace CLX.Core.Help;
 
@@ -15,7 +14,7 @@ sealed class CommandTreeBuilder
             var current = root;
             var prefix = new List<string>();
 
-            for (int i = 0; i < parts.Length; i++)
+            for (var i = 0; i < parts.Length; i++)
             {
                 prefix.Add(parts[i]);
                 var childPath = string.Join(' ', prefix);

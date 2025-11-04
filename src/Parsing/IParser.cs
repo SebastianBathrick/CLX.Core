@@ -1,10 +1,10 @@
-﻿using CLX.Core.Nodes;
-using CLX.Core.Commands;
+﻿using CLX.Core.Commands;
+using CLX.Core.Nodes;
 
 namespace CLX.Core.Parsing;
 
-using ValidCommands = IReadOnlyDictionary<string, ICommand>;
 using Contexts = IReadOnlyList<ICommandContext>;
+using ValidCommands = IReadOnlyDictionary<string, ICommand>;
 
 /// <summary> Converts lexical <see cref="INode"/> trees into executable
 /// <see cref="ICommandContext"/>s. </summary>

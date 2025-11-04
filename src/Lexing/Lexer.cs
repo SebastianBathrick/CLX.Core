@@ -212,10 +212,10 @@ partial class Lexer : ILexer
         return true;
     }
 
-    static string GetNormalizedFlagName(string flagName) => 
+    static string GetNormalizedFlagName(string flagName) =>
         // The full name will use two '-' and the alternative alias will use just one
-        flagName.StartsWith($"{FLAG_NAME_PREFIX}{FLAG_NAME_PREFIX}") ? 
-        flagName.Substring(FLAG_NORMALIZED_INDEX) :  flagName.Substring(FLAG_ALT_NAME_INDEX);
+        flagName.StartsWith($"{FLAG_NAME_PREFIX}{FLAG_NAME_PREFIX}") ?
+        flagName.Substring(FLAG_NORMALIZED_INDEX) : flagName.Substring(FLAG_ALT_NAME_INDEX);
 }
 partial class Lexer
 {

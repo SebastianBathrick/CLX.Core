@@ -1,12 +1,12 @@
-﻿using System.Reflection;
+﻿using CLX.Core.Commands;
 using CLX.Core.Lexing;
-using CLX.Core.Commands;
 using CLX.Core.Parsing;
+using System.Reflection;
 
 namespace CLX.Core;
 
-using ValidCommands = IReadOnlyDictionary<string, ICommand>;
 using Contexts = IReadOnlyList<ICommandContext>;
+using ValidCommands = IReadOnlyDictionary<string, ICommand>;
 
 /// <summary> ClxRuntime is a class that manages the execution of CLX commands. It loads command 
 /// definitions from the current assembly, uses a lexer and parser to process input arguments, 

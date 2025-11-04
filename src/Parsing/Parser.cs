@@ -1,23 +1,23 @@
-﻿using CLX.Core.Nodes;
-using CLX.Core.Commands;
-using System.Text.RegularExpressions;
+﻿using CLX.Core.Commands;
+using CLX.Core.Nodes;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace CLX.Core.Parsing;
 
-using ValidCommands = IReadOnlyDictionary<string, ICommand>;
+using ArgAttributes = IReadOnlyList<ArgumentAttribute>;
 using Contexts = IReadOnlyList<ICommandContext>;
 using FlagAttributes = IReadOnlyList<FlagAttribute>;
-using ArgAttributes = IReadOnlyList<ArgumentAttribute>;
+using ValidCommands = IReadOnlyDictionary<string, ICommand>;
 
 /// <summary> Converts lexical nodes into executable command contexts for the runtime. </summary>
 /// <remarks> Implements a Try-style API and helper methods to validate flags and values without
 /// throwing, returning descriptive error messages on failure. </remarks>
 partial class Parser : IParser
 {
-    readonly Dictionary<Type, FlagAttributes> _flagAttrsCache = new();
-    readonly Dictionary<Type, ArgAttributes> _argAttrsCache = new();
-    readonly Dictionary<string, Regex> _regexCache = new();
+    readonly Dictionary<Type, FlagAttributes> _flagAttrsCache = [];
+    readonly Dictionary<Type, ArgAttributes> _argAttrsCache = [];
+    readonly Dictionary<string, Regex> _regexCache = [];
 
     public bool TryCreateCommandContexts(IReadOnlyList<CommandNode> cmdNodes, ValidCommands cmds, out Contexts contexts, out string errorMessage)
     {
@@ -71,13 +71,13 @@ partial class Parser : IParser
                 }
 
             var context = new CommandContext(
-                cmdNode.Name, 
-                flagObjList.AsReadOnly(), 
-                cmd.Output ?? NullTextWriter.Instance, 
-                cmd.ErrorOutput ?? NullTextWriter.Instance, 
+                cmdNode.Name,
+                flagObjList.AsReadOnly(),
+                cmd.Output ?? NullTextWriter.Instance,
+                cmd.ErrorOutput ?? NullTextWriter.Instance,
                 cmd.WorkingDirectory,
                 GetPositionalValues(cmdNode.PositionalNodes));
-    
+
             contextList.Add(context);
         }
 
@@ -98,7 +98,7 @@ partial class Parser : IParser
         // Command does not accept flags
         if (flagAttrs == null)
         { errorMessage = $"Command '{commandName}' does not accept flags: '{FormatFlagForDisplay(givenName)}'"; return false; }
-        
+
         flagAttr = GetFlagAttribute(givenName, flagAttrs);
 
         // Flag not declared
@@ -109,9 +109,7 @@ partial class Parser : IParser
         if (flagNode.ValueNodes.Count < flagAttr.MinValues || flagNode.ValueNodes.Count > flagAttr.MaxValues)
         { errorMessage = $"Flag '--{flagAttr.Name}' for '{commandName}' expects {flagAttr.MinValues}..{flagAttr.MaxValues} values"; return false; }
 
-        if (!IsValidValues(flagNode.ValueNodes, flagAttr, out errorMessage)) return false;
-
-        return true;
+        return IsValidValues(flagNode.ValueNodes, flagAttr, out errorMessage);
     }
 
     bool IsValidArguments(
@@ -192,7 +190,7 @@ partial class Parser : IParser
 
     static string GetArgDisplayName(ArgumentAttribute attr)
         => string.IsNullOrWhiteSpace(attr.Name) ? $"arg{attr.Index}" : attr.Name!;
-    
+
     bool IsValidValues(IReadOnlyList<ValueNode> valueNodes, FlagAttribute flagAttr, out string errorMessage)
     {
         errorMessage = string.Empty;

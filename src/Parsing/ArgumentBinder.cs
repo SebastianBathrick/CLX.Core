@@ -1,6 +1,6 @@
+using CLX.Core.Commands;
 using System.Collections;
 using System.Reflection;
-using CLX.Core.Commands;
 
 namespace CLX.Core.Parsing;
 
@@ -38,7 +38,7 @@ internal static class ArgumentBinder
                     var converted = ConvertMany(values, elemType, out errorMessage);
                     if (converted == null) return false;
                     var array = Array.CreateInstance(elemType, converted.Count);
-                    for (int j = 0; j < converted.Count; j++) array.SetValue(converted[j], j);
+                    for (var j = 0; j < converted.Count; j++) array.SetValue(converted[j], j);
                     prop.SetValue(command, array);
                     continue;
                 }

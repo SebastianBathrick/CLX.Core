@@ -59,11 +59,11 @@ sealed class HelpCommand : ICommand
 
         foreach (var child in tree.Children)
         {
-            if (child.Command is { } cmd && cmd.Hidden) 
+            if (child.Command is { } cmd && cmd.Hidden)
                 continue;
 
             var description = GetCommandDescription(child.Command);
-            
+
             output.WriteLine($"  {child.Name}\t{description}");
         }
 
@@ -218,14 +218,14 @@ sealed class HelpCommand : ICommand
 
             foreach (var t in types)
             {
-                if (t == null || t.IsAbstract) 
+                if (t == null || t.IsAbstract)
                     continue;
 
-                if (!typeof(ICommand).IsAssignableFrom(t)) 
+                if (!typeof(ICommand).IsAssignableFrom(t))
                     continue;
 
                 var cmd = (ICommand)Activator.CreateInstance(t)!;
-                if (cmd.Hidden) 
+                if (cmd.Hidden)
                     continue;
 
                 dict[cmd.Name] = cmd;
