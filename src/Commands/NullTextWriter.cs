@@ -1,14 +1,20 @@
-﻿using CLX.Core.Context;
+﻿namespace CLX.Core.Commands;
 
-namespace CLX.Core.Parsing;
-
-internal partial class Parser
+/// <summary> An <see cref="ITextWriter"/> implementation that discards all output. </summary>
+/// <remarks> Exposed via the <see cref="Instance"/> singleton for convenience. </remarks>
+public sealed class NullTextWriter : ITextWriter
 {
-    private sealed class NullTextWriter : ITextWriter
-    {
-        public static readonly NullTextWriter Instance = new NullTextWriter();
-        private NullTextWriter() { }
-        public void Write(string text) { }
-        public void WriteLine(string text) { }
-    }
+    /// <summary> Gets the singleton instance. </summary>
+    public static readonly NullTextWriter Instance = new();
+
+    /// <summary> Initializes a new instance of the <see cref="NullTextWriter"/> class. </summary>
+    private NullTextWriter() { }
+
+    /// <summary> Writes text with no effect. </summary>
+    /// <param name="text">The text to discard.</param>
+    public void Write(string text) { }
+
+    /// <summary> Writes a line of text with no effect. </summary>
+    /// <param name="text">The text to discard.</param>
+    public void WriteLine(string text) { }
 }

@@ -5,7 +5,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>CommandLine</RootNamespace>
+    <RootNamespace>CLX.Core</RootNamespace>
     <PackageId>CLX.Core</PackageId>
     <Title>CLX.Core</Title>
     <Authors>Sebastian Bathrick</Authors>

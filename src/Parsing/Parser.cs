@@ -1,117 +1,173 @@
-﻿using CLX.Core.Context;
-using CLX.Core.Nodes;
+﻿using CLX.Core.Nodes;
+using CLX.Core.Commands;
+using System.Text.RegularExpressions;
 
 namespace CLX.Core.Parsing;
 
-internal partial class Parser : IParser
+using ValidCommands = IReadOnlyDictionary<string, ICommand>;
+using Contexts = IReadOnlyList<ICommandContext>;
+using FlagAttributes = IReadOnlyList<FlagAttribute>;
+
+/// <summary> Converts lexical nodes into executable command contexts for the runtime. </summary>
+/// <remarks> Implements a Try-style API and helper methods to validate flags and values without
+/// throwing, returning descriptive error messages on failure. </remarks>
+partial class Parser : IParser
 {
-    const string INVALID_COMMAND_STRUCTURE_ERROR_MESSAGE = "Invalid command structure";
-
-    public bool TryCreateCommandContexts(IReadOnlyList<INode> nodes, out IReadOnlyList<ICommandContext> contexts, out string errorMessage)
+    public bool TryCreateCommandContexts(IReadOnlyList<CommandNode> cmdNodes, ValidCommands cmds, out Contexts contexts, out string errorMessage)
     {
-        var contextsList = new List<ICommandContext>();
+        contexts = [];
+        errorMessage = string.Empty;
 
-        foreach (var node in nodes)
+        var contextList = new List<ICommandContext>();
+
+        foreach (var cmdNode in cmdNodes)
         {
-            if (node is not CommandNode cmdNode)
+            // These cases should never happen, because the lexer should have already validated the nodes
+            if (!cmds.ContainsKey(cmdNode.Name))
+                continue;
+
+            var cmd = cmds[cmdNode.Name];
+            var flagAttrs = GetFlagAttributes(cmd);
+            var flagObjList = new List<IFlagObject>();
+
+            foreach (var flagNode in cmdNode.FlagNodes)
             {
-                contexts = [];
-                errorMessage = INVALID_COMMAND_STRUCTURE_ERROR_MESSAGE;
-                return false;
+                /* If flag is valid then get its attribute & create flag object for the user's 
+                ICommand.Execute method to use */
+
+                // Valid flags have the correct number of values & values that match any required regex 
+                if (!IsValidFlag(flagNode, flagAttrs, out var flagAttr, out errorMessage))
+                    return false;
+
+                if (flagAttr == null)
+                    return false;
+
+                var flagValues = GetFlagValues(flagNode.ValueNodes);
+
+                // We retrieved the attribute to retrieve both the name & alternate name
+                var flagObj = new FlagObject(flagAttr.Name, flagAttr.AlternateName, flagValues);
+
+                flagObjList.Add(flagObj);
             }
 
-            var flags = new List<IFlagInstance>();
+            var reqFlagAttrs = flagAttrs?.Where(attr => attr.IsRequired).ToList() ?? [];
 
-            foreach (var flagNodeCandidate in cmdNode.FlagNodes)
-            {
-                if (flagNodeCandidate is not FlagNode flagNode)
+            foreach(var attr in reqFlagAttrs)
+                if(!flagObjList.Any(obj => obj.Name == attr.Name || obj.AlternateName == attr.Name))
                 {
-                    contexts = [];
-                    errorMessage = INVALID_COMMAND_STRUCTURE_ERROR_MESSAGE;
+                    errorMessage = $"Flag {attr.Name} is required";
                     return false;
                 }
 
-                if (!TryParseFlag(flagNode, out var flagInstance, out errorMessage))
-                {
-                    contexts = [];
-                    return false;
-                }
-
-                flags.Add(flagInstance);
-            }
-
-            // Use null writers and empty working directory by default
             var context = new CommandContext(
-                cmdNode.Name,
-                flags.AsReadOnly(),
-                NullTextWriter.Instance,
-                NullTextWriter.Instance,
-                string.Empty
-            );
-
-            contextsList.Add(context);
+                cmdNode.Name, 
+                flagObjList.AsReadOnly(), 
+                cmd.Output, 
+                cmd.ErrorOutput, 
+                cmd.WorkingDirectory);
+    
+            contextList.Add(context);
         }
 
-        contexts = contextsList.AsReadOnly();
-        errorMessage = string.Empty;
+        contexts = contextList.AsReadOnly();
         return true;
     }
 
-    public static bool TryParseFlag(FlagNode flagNode, out IFlagInstance flagInstance, out string errorMessage)
+    static bool IsValidFlag(
+        FlagNode flagNode, 
+        FlagAttributes? flagAttrs, 
+        out FlagAttribute? flagAttr, 
+        out string errorMessage
+        )
     {
+        flagAttr = null;
+        var givenName = flagNode.GivenName;
+
+        if (flagAttrs == null)
+        {
+            errorMessage = $"Flag {givenName} does not accept values";
+            return false;
+        }
+        
+        flagAttr = GetFlagAttribute(givenName, flagAttrs);
+
+        if (flagAttr == null)
+        {
+            errorMessage = $"Flag {givenName} is not a valid flag";
+            return false;
+        }
+
+        if (flagNode.ValueNodes.Count < flagAttr.MinValues || flagNode.ValueNodes.Count > flagAttr.MaxValues)
+        {
+            errorMessage = $"Flag {givenName} must have {flagAttr.MinValues} to {flagAttr.MaxValues} values";
+            return false;
+        }
+
+        if (!IsValidValues(flagNode.ValueNodes, flagAttr, out errorMessage))
+            return false;
+
+        return true;
+    }
+    
+    static bool IsValidValues(IReadOnlyList<ValueNode> valueNodes, FlagAttribute flagAttr, out string errorMessage)
+    {
+        errorMessage = string.Empty;
+
+        if (flagAttr.ValueRegexPattern == null)
+            return true;
+
+        var regex = new Regex(flagAttr.ValueRegexPattern);
+
+        foreach (var value in valueNodes)
+        {
+            // This should never happen, because the lexer should have already validated the nodes
+            if (value is not ValueNode valueNode)
+                continue;
+
+            if (regex.IsMatch(valueNode.Value))
+                continue;
+
+            errorMessage = $"Flag {flagAttr.Name} value {valueNode.Value} does not match regex {flagAttr.ValueRegexPattern}";
+            return false;
+        }
+
+        return true;
+    }
+
+    static FlagAttribute? GetFlagAttribute(string givenName, FlagAttributes? flagAttrs)
+    {
+        if (flagAttrs == null)
+            return null;
+
+        foreach (var attr in flagAttrs)
+            if (attr.Name == givenName || attr.AlternateName == givenName)
+                return attr;
+
+        return null;
+    }
+
+    static FlagAttributes? GetFlagAttributes(ICommand cmd)
+    {
+        var attrArray = cmd.GetType().GetCustomAttributes(typeof(FlagAttribute), false);
+        var flagAttrsList = new List<FlagAttribute>(attrArray.Length);
+
+        foreach (var attr in attrArray)
+            if (attr is FlagAttribute flagAttr)
+                flagAttrsList.Add(flagAttr);
+
+        return flagAttrsList.Count > 0 ? flagAttrsList.AsReadOnly() : null;
+    }
+
+    static IReadOnlyList<string> GetFlagValues(IReadOnlyList<ValueNode> valueNodes)
+    {
+        if (valueNodes.Count == 0)
+            return [];
+
         var values = new List<string>();
 
-        foreach (var argNodeCandidate in flagNode.FlagArgNodes)
-        {
-            if (argNodeCandidate is not FlagValueNode flagValueNode)
-            {
-                flagInstance = default!;
-                errorMessage = INVALID_COMMAND_STRUCTURE_ERROR_MESSAGE;
-                return false;
-            }
+        foreach (var valueNode in valueNodes)
+            values.Add(valueNode.Value);
 
-            if (!TryParseFlagValue(flagValueNode, out var flagValue, out errorMessage))
-            {
-                flagInstance = default!;
-                return false;
-            }
-
-            values.Add(flagValue);
-        }
-
-        flagInstance = new FlagInstance(flagNode.Name, values.AsReadOnly());
-        errorMessage = string.Empty;
-        return true;
-    }
-
-    public static bool TryParseFlagValue(FlagValueNode flagValueNode, out string flagValue, out string errorMessage)
-    {
-        // For now, any FlagValueNode is valid and its value is used directly
-        flagValue = flagValueNode.Value;
-        errorMessage = string.Empty;
-        return true;
-    }
-
-    private sealed class CommandContext : ICommandContext
-    {
-        public CommandContext(
-            string commandName,
-            IReadOnlyList<IFlagInstance> flags,
-            ITextWriter output,
-            ITextWriter errorOutput,
-            string workingDirectory)
-        {
-            CommandName = commandName;
-            Flags = flags;
-            Output = output;
-            ErrorOutput = errorOutput;
-            WorkingDirectory = workingDirectory;
-        }
-
-        public string CommandName { get; }
-        public IReadOnlyList<IFlagInstance> Flags { get; }
-        public ITextWriter Output { get; }
-        public ITextWriter ErrorOutput { get; }
-        public string WorkingDirectory { get; }
+        return values.AsReadOnly();
     }
 }

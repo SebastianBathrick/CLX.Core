@@ -2,24 +2,23 @@
 
 namespace CLX.Core.Lexing;
 
-class Lexer : ILexer
+/// <summary> Lexes raw command-line arguments into trees of <see cref="INode"/>s representing
+/// commands, flags, and values. </summary>
+/// <remarks> Recognizes command names from the provided set and validates flag syntax (single-dash
+/// short names and double-dash long names with kebab-case). </remarks>
+partial class Lexer : ILexer
 {
-    const char FLAG_NAME_PREFIX = '-';
-    const char ALIAS_KEBAB = '-';
-    const int FLAG_ALT_NAME_MAX_LEN = 2;
-    const int MIN_FLAG_LEN = 2;
-
-    public bool TryCreateCommandNodes(string[] args, HashSet<string> cmdNames, out IReadOnlyList<INode> nodes, out string errorArg)
+    public bool TryCreateCommandNodes(string[] args, HashSet<string> cmdNames, out IReadOnlyList<CommandNode> nodes, out string errorArg)
     {
         var argIndex = 0;
-        var cmdList = new List<INode>();
+        var cmdList = new List<CommandNode>();
 
-        while(GetCommandNode(args, ref argIndex, cmdNames) is INode cmd)
+        while (GetCommandNode(args, ref argIndex, cmdNames) is CommandNode cmd)
             cmdList.Add(cmd);
 
         if (argIndex < args.Length - 1)
         {
-            nodes = Array.Empty<INode>();
+            nodes = [];
             errorArg = args[argIndex];
             return false;
         }
@@ -29,7 +28,7 @@ class Lexer : ILexer
         return true;
     }
 
-    static INode? GetCommandNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
+    static CommandNode? GetCommandNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
     {
         if (argIndex >= args.Length)
             return null;
@@ -41,15 +40,15 @@ class Lexer : ILexer
 
         argIndex++;
 
-        var flagNodes = new List<INode>();
+        var flagNodes = new List<FlagNode>();
 
-        while(GetFlagNode(args, ref argIndex, cmdNames) is INode flagNode)
+        while (GetFlagNode(args, ref argIndex, cmdNames) is FlagNode flagNode)
             flagNodes.Add(flagNode);
 
         return new CommandNode(cmdName, flagNodes.AsReadOnly());
     }
 
-    static INode? GetFlagNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
+    static FlagNode? GetFlagNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
     {
         if (argIndex >= args.Length)
             return null;
@@ -61,16 +60,18 @@ class Lexer : ILexer
 
         argIndex++;
 
-        var flagArgsList = new List<INode>();
+        var valuesList = new List<ValueNode>();
 
-        while(GetFlagArgNode(args, ref argIndex, cmdNames) is INode flagArgNode)
-            flagArgsList.Add(flagArgNode);
+        while (GetFlagValueNode(args, ref argIndex, cmdNames) is ValueNode valueNode)
+            valuesList.Add(valueNode);
 
-        return new FlagNode(flagName, flagArgsList.AsReadOnly());
+        // Remove flag dashes so during parsing the name can be used to identify the correct flag attribute
+        var normalizedName = GetNormalizedFlagName(flagName);
 
+        return new FlagNode(normalizedName, valuesList.AsReadOnly());
     }
 
-    static INode? GetFlagArgNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
+    static ValueNode? GetFlagValueNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
     {
         if (argIndex >= args.Length)
             return null;
@@ -82,7 +83,7 @@ class Lexer : ILexer
 
         argIndex++;
 
-        return new FlagValueNode(argVal);
+        return new ValueNode(argVal);
     }
 
     static bool IsValidFlagSyntax(string arg)
@@ -128,4 +129,18 @@ class Lexer : ILexer
 
         return true;
     }
+
+    static string GetNormalizedFlagName(string flagName) => 
+        // The full name will use two '-' and the alternative alias will use just one
+        flagName.StartsWith($"{FLAG_NAME_PREFIX}{FLAG_NAME_PREFIX}") ? 
+        flagName.Substring(FLAG_NORMALIZED_INDEX) :  flagName.Substring(FLAG_ALT_NAME_INDEX);
+}
+partial class Lexer
+{
+    const char FLAG_NAME_PREFIX = '-';
+    const char ALIAS_KEBAB = '-';
+    const int MIN_FLAG_LEN = 2; // e.g. "-f"
+    const int FLAG_ALT_NAME_MAX_LEN = 3; // e.g. "-f"
+    const int FLAG_NORMALIZED_INDEX = 2;
+    const int FLAG_ALT_NAME_INDEX = 1;
 }

@@ -1,18 +1,5 @@
-﻿using CLX.Core.Context;
+﻿namespace CLX.Core.Commands;
 
-namespace CLX.Core.Parsing;
-
-internal partial class Parser
-{
-    private sealed class FlagInstance : IFlagInstance
-    {
-        public FlagInstance(string name, IReadOnlyList<string> values)
-        {
-            Name = name;
-            Values = values;
-        }
-
-        public string Name { get; }
-        public IReadOnlyList<string> Values { get; }
-    }
-}
+/// <summary> Immutable flag object parsed from the command line. </summary>
+/// <remarks> Contains the flag's canonical name and the list of values supplied. </remarks>
+public sealed record FlagObject(string Name, string? AlternateName, IReadOnlyList<string> Values) : IFlagObject;

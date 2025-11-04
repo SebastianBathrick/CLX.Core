@@ -1,11 +1,11 @@
-﻿using CLX.Core.Lexing;
+﻿using System.Reflection;
+using CLX.Core.Lexing;
 using CLX.Core.Commands;
-using CLX.Core.Context;
-using System.Reflection;
+using CLX.Core.Parsing;
 
-namespace CLX.Core.Parsing;
+namespace CLX.Core;
 
-using Commands = IReadOnlyDictionary<string, ICommand>;
+using ValidCommands = IReadOnlyDictionary<string, ICommand>;
 using Contexts = IReadOnlyList<ICommandContext>;
 
 /// <summary> ClxRuntime is a class that manages the execution of CLX commands. It loads command 
@@ -13,13 +13,10 @@ using Contexts = IReadOnlyList<ICommandContext>;
 /// creates command contexts, and executes each command in sequence. It also handles errors during
 /// execution, storing any exceptions that occur and writing error messages through an optional 
 /// error writer. </summary>
-public class ClxRuntime(ITextWriter? errorWriter = null)
+public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
 {
-    const int SUCCESS_EXIT_CODE = 0;
-    const int ERROR_EXIT_CODE = -1;
+    ValidCommands? _commands = null;
 
-    Commands? _commands = null;
-    
     readonly ILexer _lexer = new Lexer();
     readonly IParser _parser = new Parser();
 
@@ -37,18 +34,18 @@ public class ClxRuntime(ITextWriter? errorWriter = null)
     public int Run(string[] args, string workingDirectory = "")
     {
         try
-        {  
+        {
             // Load all of the client's commands from the assembly during the first run
             _commands ??= LoadCommandsFromAssembly();
 
             // Try to create command nodes; return error if lexing fails
-            if (!_lexer.TryCreateCommandNodes(args, [.._commands.Keys], out var nodesList, out var errorArg))
+            if (!_lexer.TryCreateCommandNodes(args, [.. _commands.Keys], out var nodesList, out var errorArg))
             {
                 _errorWriter?.WriteLine($"Command line error: Unexpected argument '{errorArg}'");
                 return ERROR_EXIT_CODE;
             }
 
-            if (!_parser.TryCreateCommandContexts(nodesList, out var contextsList, out var parseError))
+            if (!_parser.TryCreateCommandContexts(nodesList, _commands, out var contextsList, out var parseError))
             {
                 _errorWriter?.WriteLine($"Command line error: {parseError}");
                 return ERROR_EXIT_CODE;
@@ -76,14 +73,14 @@ public class ClxRuntime(ITextWriter? errorWriter = null)
         return ERROR_EXIT_CODE;
     }
 
-    static int ExecuteCommands(Commands commands, Contexts contexts, string workingDirectory, out string failedCommandName)
+    static int ExecuteCommands(ValidCommands commands, Contexts contexts, string workingDirectory, out string failedCommandName)
     {
         failedCommandName = string.Empty;
 
         foreach (var context in contexts)
         {
             // All the contexts have already been validated so no checking is necessary here
-            var command = commands[context.CommandName];        
+            var command = commands[context.CommandName];
             var exitCode = command.Execute(context, workingDirectory);
 
             if (exitCode == SUCCESS_EXIT_CODE)
@@ -97,7 +94,7 @@ public class ClxRuntime(ITextWriter? errorWriter = null)
         return SUCCESS_EXIT_CODE; // All commands succeeded
     }
 
-    static Commands LoadCommandsFromAssembly()
+    static ValidCommands LoadCommandsFromAssembly()
     {
         var assembly = Assembly.GetExecutingAssembly();
 
@@ -116,7 +113,13 @@ public class ClxRuntime(ITextWriter? errorWriter = null)
     }
 }
 
-public class ClxCommandExecuteError : AggregateException
+partial class ClxRuntime
+{
+    const int SUCCESS_EXIT_CODE = 0;
+    const int ERROR_EXIT_CODE = -1;
+}
+
+public sealed class ClxCommandExecuteError : AggregateException
 {
     public ClxCommandExecuteError(IEnumerable<Exception> innerExceptions)
         : base($"Command Execute(ICommandContext) exception(s) thrown:\n{string.Join("\n", innerExceptions)}", innerExceptions) { }
