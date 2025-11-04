@@ -1,4 +1,4 @@
-﻿namespace CLX.Core.Commands;
+﻿namespace CLX.Core.Writers;
 
 /// <summary> An <see cref="ITextWriter"/> implementation that discards all output. </summary>
 /// <remarks> Exposed via the <see cref="Instance"/> singleton for convenience. </remarks>

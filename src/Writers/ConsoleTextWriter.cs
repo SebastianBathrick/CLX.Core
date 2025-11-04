@@ -1,6 +1,6 @@
 using System;
 
-namespace CLX.Core.Commands;
+namespace CLX.Core.Writers;
 
 /// <summary> Console-backed implementation of <see cref="ITextWriter"/>. </summary>
 public sealed class ConsoleTextWriter : ITextWriter

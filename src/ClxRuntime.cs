@@ -1,6 +1,7 @@
 ﻿using CLX.Core.Commands;
 using CLX.Core.Lexing;
 using CLX.Core.Parsing;
+using CLX.Core.Writers;
 using System.Reflection;
 
 namespace CLX.Core;

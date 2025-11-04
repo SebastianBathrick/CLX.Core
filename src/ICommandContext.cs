@@ -1,6 +1,8 @@
-namespace CLX.Core.Commands;
+namespace CLX.Core;
 
+using CLX.Core.Commands;
 using CLX.Core.Parsing;
+using CLX.Core.Writers;
 
 /// <summary> Represents a validated invocation context for a single command. </summary>
 /// <remarks> Produced by the parser and passed to command implementations at execution time. </remarks>
@@ -47,7 +49,7 @@ public interface ICommandContext
     static bool TryGetArgument<T>(ICommandContext context, int index, out T value)
     {
         value = default!;
-        return index >= 0 && index < context.Arguments.Count && TypeConversion.TryConvert<T>(context.Arguments[index], out value, out _);
+        return index >= 0 && index < context.Arguments.Count && TypeConversion.TryConvert(context.Arguments[index], out value, out _);
     }
 
     /// <summary> Try to read all remaining positional arguments from a start index as a typed list. </summary>
@@ -57,6 +59,6 @@ public interface ICommandContext
         if (startIndex < 0 || startIndex > context.Arguments.Count)
             return false;
         var slice = context.Arguments.Skip(startIndex);
-        return TypeConversion.TryConvertMany<T>(slice, out values, out _);
+        return TypeConversion.TryConvertMany(slice, out values, out _);
     }
 }

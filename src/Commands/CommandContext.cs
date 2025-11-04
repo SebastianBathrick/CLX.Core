@@ -1,5 +1,7 @@
-﻿namespace CLX.Core.Commands;
-public sealed record CommandContext : ICommandContext
+﻿using CLX.Core.Writers;
+
+namespace CLX.Core.Commands;
+sealed record CommandContext : ICommandContext
 {
     public CommandContext(
         string commandName,

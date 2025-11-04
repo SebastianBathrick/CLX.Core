@@ -1,4 +1,6 @@
-﻿namespace CLX.Core.Commands;
+﻿using CLX.Core.Writers;
+
+namespace CLX.Core.Commands;
 
 /// <summary> Defines the contract for a CLX command executable by the runtime. </summary>
 /// <remarks> Each implementation is discovered via reflection and executed with a parsed

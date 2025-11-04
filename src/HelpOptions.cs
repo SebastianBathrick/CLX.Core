@@ -1,6 +1,6 @@
-using CLX.Core.Commands;
+using CLX.Core.Writers;
 
-namespace CLX.Core.Help;
+namespace CLX.Core;
 
 /// <summary>
 /// Global configuration for Help command output writers.

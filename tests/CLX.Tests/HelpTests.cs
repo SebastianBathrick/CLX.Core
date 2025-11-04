@@ -1,5 +1,6 @@
 using CLX.Core;
 using CLX.Core.Commands;
+using CLX.Core.Writers;
 using Xunit;
 
 namespace CLX.Tests;

@@ -1,4 +1,4 @@
-namespace CLX.Core.Commands;
+namespace CLX.Core.Writers;
 
 /// <summary> Abstraction over text output for commands. </summary>
 /// <remarks> Enables testing and redirection of output and error streams. </remarks>
