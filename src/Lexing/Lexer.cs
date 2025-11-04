@@ -1,4 +1,5 @@
 ﻿using CLX.Core.Nodes;
+using System;
 
 namespace CLX.Core.Lexing;
 
@@ -59,7 +60,7 @@ partial class Lexer : ILexer
             // If options are still being parsed and this looks like a flag, parse it
             if (!stopOptions && IsValidFlagSyntax(token))
             {
-                var flagNode = GetFlagNode(args, ref argIndex, cmdNames);
+                var flagNode = GetFlagNode(args, ref argIndex, cmdNames, cmdName);
                 if (flagNode != null) { flagNodes.Add(flagNode); continue; }
                 // If a token looked like a flag but didn't parse, treat it as positional
             }
@@ -72,7 +73,7 @@ partial class Lexer : ILexer
         return new CommandNode(cmdName, flagNodes.AsReadOnly(), positionalNodes.AsReadOnly());
     }
 
-    static FlagNode? GetFlagNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
+    static FlagNode? GetFlagNode(string[] args, ref int argIndex, HashSet<string> cmdNames, string currentCommandName)
     {
         if (argIndex >= args.Length)
             return null;
@@ -86,7 +87,10 @@ partial class Lexer : ILexer
 
         var valuesList = new List<ValueNode>();
 
-        while (GetFlagValueNode(args, ref argIndex, cmdNames) is ValueNode valueNode)
+        // Help command's --for values can include tokens that look like command names
+        var allowCompositeTokensAsValues = string.Equals(currentCommandName, "help", StringComparison.Ordinal);
+
+        while (GetFlagValueNode(args, ref argIndex, cmdNames, allowCompositeTokensAsValues) is ValueNode valueNode)
             valuesList.Add(valueNode);
 
         // Remove flag dashes so during parsing the name can be used to identify the correct flag attribute
@@ -95,7 +99,7 @@ partial class Lexer : ILexer
         return new FlagNode(normalizedName, valuesList.AsReadOnly());
     }
 
-    static ValueNode? GetFlagValueNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
+    static ValueNode? GetFlagValueNode(string[] args, ref int argIndex, HashSet<string> cmdNames, bool treatCompositeAsValue)
     {
         if (argIndex >= args.Length)
             return null;
@@ -103,7 +107,7 @@ partial class Lexer : ILexer
         var argVal = args[argIndex].Trim();
 
         // Stop if next tokens begin a (possibly composite) command name or a new flag
-        if (StartsWithCompositeCommandName(args, argIndex, cmdNames) || IsValidFlagSyntax(argVal))
+        if ((!treatCompositeAsValue && StartsWithCompositeCommandName(args, argIndex, cmdNames)) || IsValidFlagSyntax(argVal))
             return null;
 
         argIndex++;

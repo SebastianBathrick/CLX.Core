@@ -1,0 +1,98 @@
+CLX interactive shell. Type 'exit' or 'quit' to leave.
+Examples: help | echo hello world | add 1 2 3 | greet Bob --times 2 | showargs path -- -n --x
+clx> help
+Commands:
+  add   Sum integer arguments
+  echo  Echo all positional arguments
+  greet Greet a person optionally multiple times
+  help  Show help for commands and subcommands.
+  showargs      Show a path and the rest arguments (demonstrates --)
+
+Use 'help --for <command path>' for details.
+clx> help --for "add"
+Usage: <tool> add <numbers...> [flags]
+
+Sum integer arguments
+
+Arguments:
+  0: numbers    values: 1..2147483647 (required)
+
+Use '--' to stop parsing flags.
+clx> add 321 23
+344
+clx> help greet
+Command line error: Missing required argument '<name>' for 'greet'
+(exit -1)
+clx> help --for "greet"
+Usage: <tool> greet <name> [flags]
+
+Greet a person optionally multiple times
+
+Flags:
+  --times, -t   values: 1  [regex: ^\d+$]
+
+Arguments:
+  0: name       values: 1 (required)
+
+Use '--' to stop parsing flags.
+clx> help "help"
+Commands:
+  add   Sum integer arguments
+  echo  Echo all positional arguments
+  greet Greet a person optionally multiple times
+  help  Show help for commands and subcommands.
+  showargs      Show a path and the rest arguments (demonstrates --)
+
+Use 'help --for <command path>' for details.
+Commands:
+  add   Sum integer arguments
+  echo  Echo all positional arguments
+  greet Greet a person optionally multiple times
+  help  Show help for commands and subcommands.
+  showargs      Show a path and the rest arguments (demonstrates --)
+
+Use 'help --for <command path>' for details.
+clx> help --for "help"
+Usage: <tool> help [flags]
+
+Show help for commands and subcommands.
+
+Flags:
+  --for, -f     values: 0..16
+
+Use '--' to stop parsing flags.
+clx> add 2323 2131
+4454
+clx> help --for "showargs"
+Usage: <tool> showargs <path> [rest...] [flags]
+
+Show a path and the rest arguments (demonstrates --)
+
+Arguments:
+  0: path       values: 1 (required)
+  1: rest       values: 0..2147483647
+
+Use '--' to stop parsing flags.
+clx> showargs path -- -n --x
+path = path
+rest = [-n, --x]
+clx> echo hello world
+hello world
+clx> add 123
+123
+clx> greet Bob --times 10
+Hello, Bob!
+Hello, Bob!
+Hello, Bob!
+Hello, Bob!
+Hello, Bob!
+Hello, Bob!
+Hello, Bob!
+Hello, Bob!
+Hello, Bob!
+Hello, Bob!
+clx> showargs path -- -n --x
+path = path
+rest = [-n, --x]
+clx>
+

@@ -9,17 +9,18 @@ namespace CLX.Core.Help;
 /// way as user commands so clients can override it if desired. </remarks>
 sealed class HelpCommand : ICommand
 {
+
     /// <summary> The command name used to invoke help. </summary>
     public string Name => "help";
 
     /// <summary> Short user-facing description for listings. </summary>
     public string Description => "Show help for commands and subcommands.";
 
-    /// <summary> The writer used for standard output, not required. </summary>
-    public ITextWriter? Output { get; } = null;
+    /// <summary> The writer used for standard output. Configurable via HelpOptions. </summary>
+    public ITextWriter? Output => HelpOptions.OutputWriter;
 
-    /// <summary> The writer used for error output, not required. </summary>
-    public ITextWriter? ErrorOutput { get; } = null;
+    /// <summary> The writer used for error output. Configurable via HelpOptions. </summary>
+    public ITextWriter? ErrorOutput => HelpOptions.ErrorOutputWriter;
 
     /// <summary> Working directory is unused by the help command. </summary>
     public string WorkingDirectory { get; } = string.Empty;
@@ -67,7 +68,7 @@ sealed class HelpCommand : ICommand
             output.WriteLine($"  {child.Name}\t{description}");
         }
 
-        output.WriteLine("\nUse 'help --for <command path>' for details.");
+        output.WriteLine("\nMore details: help --for \"<command path>\"");
         return 0;
     }
 

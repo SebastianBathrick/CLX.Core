@@ -1,12 +1,15 @@
 ﻿using CLX.Core;
 using CLX.Core.Commands;
+using CLX.Core.Help;
 
 internal class Program
 {
     private static void Main(string[] args)
     {
         // Simple REPL for trying commands interactively
-        var runtime = new ClxRuntime(new ConsoleTextWriter());
+        HelpOptions.OutputWriter = ConsoleTextWriter.Instance;
+        HelpOptions.ErrorOutputWriter = ConsoleTextWriter.Instance;
+        var runtime = new ClxRuntime(ConsoleTextWriter.Instance);
 
         Console.WriteLine("CLX interactive shell. Type 'exit' or 'quit' to leave.");
         Console.WriteLine("Examples: help | echo hello world | add 1 2 3 | greet Bob --times 2 | showargs path -- -n --x");
@@ -58,19 +61,26 @@ internal class Program
 }
 
 // Text writer that proxies to Console for convenience in this interactive app
-sealed class ConsoleTextWriter : ITextWriter
-{
-    public void Write(string text) => Console.Write(text);
-    public void WriteLine(string text) => Console.WriteLine(text);
-}
+// (Using CLX.Core.Commands.ConsoleTextWriter instead)
 
 // Sample commands demonstrating arguments, variadics, flags, and composite names
+/// <summary>
+/// Echoes all positional arguments back to output.
+/// </summary>
+/// <example>
+/// echo hello world
+/// => hello world
+/// </example>
+/// <example>
+/// echo "quoted text here"
+/// => quoted text here
+/// </example>
 sealed class EchoCommand : ICommand
 {
     public string Name => "echo";
     public string Description => "Echo all positional arguments";
-    public ITextWriter? Output => null;
-    public ITextWriter? ErrorOutput => null;
+    public ITextWriter? Output => ConsoleTextWriter.Instance;
+    public ITextWriter? ErrorOutput => ConsoleTextWriter.Instance;
     public string WorkingDirectory => string.Empty;
 
     [Argument(0, Name = "words", MinValues = 1, MaxValues = int.MaxValue)]
@@ -83,12 +93,23 @@ sealed class EchoCommand : ICommand
     }
 }
 
+/// <summary>
+/// Sums integer positional arguments and prints the total.
+/// </summary>
+/// <example>
+/// add 1 2 3
+/// => 6
+/// </example>
+/// <example>
+/// add 10 20
+/// => 30
+/// </example>
 sealed class AddCommand : ICommand
 {
     public string Name => "add";
     public string Description => "Sum integer arguments";
-    public ITextWriter? Output => null;
-    public ITextWriter? ErrorOutput => null;
+    public ITextWriter? Output => ConsoleTextWriter.Instance;
+    public ITextWriter? ErrorOutput => ConsoleTextWriter.Instance;
     public string WorkingDirectory => string.Empty;
 
     [Argument(0, Name = "numbers", MinValues = 1, MaxValues = int.MaxValue)]
@@ -103,12 +124,24 @@ sealed class AddCommand : ICommand
     }
 }
 
+/// <summary>
+/// Greets a person once or multiple times when using the <c>--times</c> flag.
+/// </summary>
+/// <example>
+/// greet Alice
+/// => Hello, Alice!
+/// </example>
+/// <example>
+/// greet Bob --times 2
+/// => Hello, Bob!
+/// => Hello, Bob!
+/// </example>
 sealed class GreetCommand : ICommand
 {
     public string Name => "greet";
     public string Description => "Greet a person optionally multiple times";
-    public ITextWriter? Output => null;
-    public ITextWriter? ErrorOutput => null;
+    public ITextWriter? Output => ConsoleTextWriter.Instance;
+    public ITextWriter? ErrorOutput => ConsoleTextWriter.Instance;
     public string WorkingDirectory => string.Empty;
 
     [Argument(0, Name = "name", IsRequired = true, MinValues = 1, MaxValues = 1)]
@@ -129,12 +162,25 @@ sealed class GreetCommand : ICommand
     }
 }
 
+/// <summary>
+/// Shows a required path and then the remaining positional arguments. Demonstrates using <c>--</c> to stop flag parsing.
+/// </summary>
+/// <example>
+/// showargs ./file.txt a b c
+/// => path = ./file.txt
+/// => rest = [a, b, c]
+/// </example>
+/// <example>
+/// showargs ./file.txt -- -n --x
+/// => path = ./file.txt
+/// => rest = [-n, --x]
+/// </example>
 sealed class ShowArgsCommand : ICommand
 {
     public string Name => "showargs";
     public string Description => "Show a path and the rest arguments (demonstrates --)";
-    public ITextWriter? Output => null;
-    public ITextWriter? ErrorOutput => null;
+    public ITextWriter? Output => ConsoleTextWriter.Instance;
+    public ITextWriter? ErrorOutput => ConsoleTextWriter.Instance;
     public string WorkingDirectory => string.Empty;
 
     [Argument(0, Name = "path", IsRequired = true, MinValues = 1, MaxValues = 1)]
