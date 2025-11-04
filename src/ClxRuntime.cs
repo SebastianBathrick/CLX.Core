@@ -96,17 +96,29 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
 
     static ValidCommands LoadCommandsFromAssembly()
     {
-        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
-
-        var commandTypes = assembly.GetTypes()
-            .Where(t => typeof(ICommand).IsAssignableFrom(t) && !t.IsAbstract);
+        // Discover ICommand implementations across all loaded assemblies to support test hosts
+        // and multi-assembly applications.
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies();
 
         var commands = new Dictionary<string, ICommand>();
 
-        foreach (var type in commandTypes)
+        foreach (var asm in assemblies)
         {
-            var instance = (ICommand)Activator.CreateInstance(type)!;
-            commands[instance.Name] = instance;
+            Type[] types;
+            try { types = asm.GetTypes(); }
+            catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t != null).Cast<Type>().ToArray(); }
+
+            foreach (var type in types)
+            {
+                if (type == null || type.IsAbstract)
+                    continue;
+
+                if (!typeof(ICommand).IsAssignableFrom(type))
+                    continue;
+
+                var instance = (ICommand)Activator.CreateInstance(type)!;
+                commands[instance.Name] = instance;
+            }
         }
 
         return commands.AsReadOnly();
