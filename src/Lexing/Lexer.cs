@@ -1,45 +1,55 @@
-﻿namespace CLX.Lexing;
+﻿using CLX.Core.Nodes;
 
-class CommandLexer : ICommandLexer
+namespace CLX.Core.Lexing;
+
+class Lexer : ILexer
 {
     const char FLAG_NAME_PREFIX = '-';
     const char ALIAS_KEBAB = '-';
     const int FLAG_ALT_NAME_MAX_LEN = 2;
     const int MIN_FLAG_LEN = 2;
 
-    public IReadOnlyList<ILexerNode> GetNodes(string[] args, HashSet<string> cmdNames, out int endArgsIndex)
+    public bool TryCreateCommandNodes(string[] args, HashSet<string> cmdNames, out IReadOnlyList<INode> nodes, out string errorArg)
     {
         var argIndex = 0;
-        var cmdList = new List<ILexerNode>();
+        var cmdList = new List<INode>();
 
-        while(GetCommandNode(args, ref argIndex, cmdNames) is ILexerNode cmd)
+        while(GetCommandNode(args, ref argIndex, cmdNames) is INode cmd)
             cmdList.Add(cmd);
 
-        endArgsIndex = argIndex;
-        return cmdList.AsReadOnly();
+        if (argIndex < args.Length - 1)
+        {
+            nodes = Array.Empty<INode>();
+            errorArg = args[argIndex];
+            return false;
+        }
+
+        nodes = cmdList.AsReadOnly();
+        errorArg = string.Empty;
+        return true;
     }
 
-    static ILexerNode? GetCommandNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
+    static INode? GetCommandNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
     {
         if (argIndex >= args.Length)
             return null;
 
         var cmdName = args[argIndex].Trim();
 
-        if (!IsValidCommandSyntax(cmdName) || !cmdNames.Contains(cmdName))
+        if (!IsValidAlias(cmdName) || !cmdNames.Contains(cmdName))
             return null;
 
         argIndex++;
 
-        var flagNodes = new List<ILexerNode>();
+        var flagNodes = new List<INode>();
 
-        while(GetFlagNode(args, ref argIndex, cmdNames) is ILexerNode flagNode)
+        while(GetFlagNode(args, ref argIndex, cmdNames) is INode flagNode)
             flagNodes.Add(flagNode);
 
         return new CommandNode(cmdName, flagNodes.AsReadOnly());
     }
 
-    static ILexerNode? GetFlagNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
+    static INode? GetFlagNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
     {
         if (argIndex >= args.Length)
             return null;
@@ -51,16 +61,16 @@ class CommandLexer : ICommandLexer
 
         argIndex++;
 
-        var flagArgsList = new List<ILexerNode>();
+        var flagArgsList = new List<INode>();
 
-        while(GetFlagArgNode(args, ref argIndex, cmdNames) is ILexerNode flagArgNode)
+        while(GetFlagArgNode(args, ref argIndex, cmdNames) is INode flagArgNode)
             flagArgsList.Add(flagArgNode);
 
         return new FlagNode(flagName, flagArgsList.AsReadOnly());
 
     }
 
-    static ILexerNode? GetFlagArgNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
+    static INode? GetFlagArgNode(string[] args, ref int argIndex, HashSet<string> cmdNames)
     {
         if (argIndex >= args.Length)
             return null;
@@ -71,15 +81,8 @@ class CommandLexer : ICommandLexer
             return null;
 
         argIndex++;
-        return new FlagArgumentNode(argVal);
-    }
 
-    static bool IsValidCommandSyntax(string arg)
-    {
-        foreach (var c in arg)
-            if (!char.IsLetter(c))
-                return false;
-        return true;
+        return new FlagValueNode(argVal);
     }
 
     static bool IsValidFlagSyntax(string arg)
@@ -104,7 +107,7 @@ class CommandLexer : ICommandLexer
         return IsValidAlias(arg, flagNameIndex);
     }
 
-    static bool IsValidAlias(string arg, int indexOffset)
+    static bool IsValidAlias(string arg, int indexOffset = 0)
     {
         // If the flag ends with a dash (e.g. "--", "--my-flag-", ect.)
         if (arg.Last() == FLAG_NAME_PREFIX || arg.Last() == ALIAS_KEBAB)

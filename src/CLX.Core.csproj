@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>CommandLine</RootNamespace>
+    <PackageId>CLX.Core</PackageId>
+    <Title>CLX.Core</Title>
+    <Authors>Sebastian Bathrick</Authors>
+    <AssemblyName>CLX.Core</AssemblyName>
+    <Description>A lightweight, easy-to-use class library for building and executing command-line interfaces.</Description>
+    <Copyright>MIT License</Copyright>
+    <RepositoryUrl>https://github.com/SebastianBathrick/CLX.Core</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+</Project>
