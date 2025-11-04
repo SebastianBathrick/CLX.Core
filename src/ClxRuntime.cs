@@ -96,7 +96,7 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
 
     static ValidCommands LoadCommandsFromAssembly()
     {
-        var assembly = Assembly.GetExecutingAssembly();
+        var assembly = Assembly.GetEntryAssembly() ?? Assembly.GetExecutingAssembly();
 
         var commandTypes = assembly.GetTypes()
             .Where(t => typeof(ICommand).IsAssignableFrom(t) && !t.IsAbstract);
