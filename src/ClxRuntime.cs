@@ -1,6 +1,5 @@
 ﻿using CLX.Core.Commands;
-using CLX.Core.Lexing;
-using CLX.Core.Parsing;
+using CLX.Core.Pipeline;
 using CLX.Core.Writers;
 using System.Reflection;
 
@@ -18,9 +17,11 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
 {
     ValidCommands? _commands = null;
 
-    readonly ILexer _lexer = new Lexer();
-    readonly IParser _parser = new Parser();
+    readonly Lexer _lexer = new();
+    readonly Parser _parser = new();
+    readonly FlagValueBinder _valueBinder = new();
 
+    string _errorMessage = string.Empty;
     readonly ITextWriter? _errorWriter = errorWriter;
 
     Exception? _exception = null;
@@ -40,25 +41,19 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
             _commands ??= LoadCommandsFromAssembly();
 
             // Try to create command nodes; return error if lexing fails
-            if (!_lexer.TryCreateCommandNodes(args, [.. _commands.Keys], out var nodesList, out var errorArg))
+            if (!_lexer.TryCreateCommandNodes(args, [.. _commands.Keys], out var nodesList))
             {
-                _errorWriter?.WriteLine($"Command line error: Unexpected argument '{errorArg}'");
+                _errorWriter?.WriteLine($"Command line error: {_lexer.ErrorMessage}");
                 return ERROR_EXIT_CODE;
             }
 
-            if (!_parser.TryCreateCommandContexts(nodesList, _commands, out var contextsList, out var parseError))
+            if (!_parser.TryCreateCommandContexts(nodesList, _commands, out var contextsList))
             {
-                _errorWriter?.WriteLine($"Command line error: {parseError}");
+                _errorWriter?.WriteLine($"Command line error: {_parser.ErrorMessage}");
                 return ERROR_EXIT_CODE;
             }
 
-            var exitCode = ExecuteCommands(_commands, contextsList, workingDirectory, out var failedCmdName);
-
-            if (exitCode == SUCCESS_EXIT_CODE)
-                return SUCCESS_EXIT_CODE;
-
-            _errorWriter?.WriteLine($"Command '{failedCmdName}' failed with exit code {exitCode}");
-            return ERROR_EXIT_CODE;
+            return ExecuteCommands(_commands, contextsList, workingDirectory);
         }
         catch (Exception ex)
         {
@@ -69,20 +64,16 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
         return ERROR_EXIT_CODE;
     }
 
-    static int ExecuteCommands(ValidCommands commands, Contexts contexts, string workingDirectory, out string failedCommandName)
+    int ExecuteCommands(ValidCommands commands, Contexts contexts, string workingDirectory)
     {
-        failedCommandName = string.Empty;
-
         foreach (var context in contexts)
         {
             // All the contexts have already been validated so no checking is necessary here
             var command = commands[context.CommandName];
 
-            // Bind positional arguments to the command instance before execution
-            if (!ArgumentBinder.TryBind(command, context, out var bindError))
+            if (!_valueBinder.TryBind(command, context))
             {
-                context.ErrorOutput.WriteLine(bindError);
-                failedCommandName = context.CommandName;
+                _errorWriter?.WriteLine(_valueBinder.ErrorMessage);
                 return ERROR_EXIT_CODE;
             }
 
@@ -91,8 +82,7 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
             if (exitCode == SUCCESS_EXIT_CODE)
                 continue;
 
-            // If a single command fails then do not run anymore commands to avoid unintended user actions
-            failedCommandName = context.CommandName;
+            _errorWriter?.WriteLine($"Command '{context.CommandName}' failed with exit code {exitCode}");
             return exitCode;
         }
 
@@ -110,8 +100,14 @@ public sealed partial class ClxRuntime(ITextWriter? errorWriter = null)
         foreach (var asm in assemblies)
         {
             Type[] types;
-            try { types = asm.GetTypes(); }
-            catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t != null).Cast<Type>().ToArray(); }
+            try 
+            { 
+                types = asm.GetTypes(); 
+            }
+            catch (ReflectionTypeLoadException ex) 
+            { 
+                types = ex.Types.Where(t => t != null).Cast<Type>().ToArray(); 
+            }
 
             foreach (var type in types)
             {

@@ -4,9 +4,9 @@ using CLX.Core.Writers;
 using System.Reflection;
 using System.Text.RegularExpressions;
 
-namespace CLX.Core.Parsing;
+namespace CLX.Core.Pipeline;
 
-using ArgAttributes = IReadOnlyList<ArgumentAttribute>;
+using ArgAttributes = IReadOnlyList<FlagValueAttribute>;
 using Contexts = IReadOnlyList<ICommandContext>;
 using FlagAttributes = IReadOnlyList<FlagAttribute>;
 using ValidCommands = IReadOnlyDictionary<string, ICommand>;
@@ -14,16 +14,21 @@ using ValidCommands = IReadOnlyDictionary<string, ICommand>;
 /// <summary> Converts lexical nodes into executable command contexts for the runtime. </summary>
 /// <remarks> Implements a Try-style API and helper methods to validate flags and values without
 /// throwing, returning descriptive error messages on failure. </remarks>
-partial class Parser : IParser
+partial class Parser
 {
     readonly Dictionary<Type, FlagAttributes> _flagAttrsCache = [];
     readonly Dictionary<Type, ArgAttributes> _argAttrsCache = [];
     readonly Dictionary<string, Regex> _regexCache = [];
+    
+    string _errorMessage = string.Empty;
+    
+    /// <summary> Gets the most recent error message. </summary>
+    public string ErrorMessage => _errorMessage;
 
-    public bool TryCreateCommandContexts(IReadOnlyList<CommandNode> cmdNodes, ValidCommands cmds, out Contexts contexts, out string errorMessage)
+    public bool TryCreateCommandContexts(IReadOnlyList<CommandNode> cmdNodes, ValidCommands cmds, out Contexts contexts)
     {
         contexts = [];
-        errorMessage = string.Empty;
+        _errorMessage = string.Empty;
 
         var contextList = new List<ICommandContext>();
 
@@ -44,7 +49,7 @@ partial class Parser : IParser
                 ICommand.Execute method to use */
 
                 // Valid flags have the correct number of values & values that match any required regex 
-                if (!IsValidFlag(cmdNode.Name, flagNode, flagAttrs, out var flagAttr, out errorMessage))
+                if (!IsValidFlag(cmdNode.Name, flagNode, flagAttrs, out var flagAttr))
                     return false;
 
                 if (flagAttr == null)
@@ -59,7 +64,7 @@ partial class Parser : IParser
             }
 
             // Validate positional arguments
-            if (!IsValidArguments(cmdNode.Name, cmdNode.PositionalNodes, argAttrs, out errorMessage))
+            if (!IsValidArguments(cmdNode.Name, cmdNode.PositionalNodes, argAttrs))
                 return false;
 
             var reqFlagAttrs = flagAttrs?.Where(attr => attr.IsRequired).ToList() ?? [];
@@ -67,7 +72,7 @@ partial class Parser : IParser
             foreach (var attr in reqFlagAttrs)
                 if (!flagObjList.Any(obj => obj.Name == attr.Name || obj.AlternateName == attr.Name))
                 {
-                    errorMessage = $"Missing required flag '--{attr.Name}' for '{cmdNode.Name}'";
+                    _errorMessage = $"Missing required flag '--{attr.Name}' for '{cmdNode.Name}'";
                     return false;
                 }
 
@@ -90,48 +95,46 @@ partial class Parser : IParser
         string commandName,
         FlagNode flagNode,
         FlagAttributes? flagAttrs,
-        out FlagAttribute? flagAttr,
-        out string errorMessage)
+        out FlagAttribute? flagAttr)
     {
         flagAttr = null;
         var givenName = flagNode.GivenName;
 
         // Command does not accept flags
         if (flagAttrs == null)
-        { errorMessage = $"Command '{commandName}' does not accept flags: '{FormatFlagForDisplay(givenName)}'"; return false; }
+        { _errorMessage = $"Command '{commandName}' does not accept flags: '{FormatFlagForDisplay(givenName)}'"; return false; }
 
         flagAttr = GetFlagAttribute(givenName, flagAttrs);
 
         // Flag not declared
         if (flagAttr == null)
-        { errorMessage = $"Unknown flag '{FormatFlagForDisplay(givenName)}' for '{commandName}'"; return false; }
+        { _errorMessage = $"Unknown flag '{FormatFlagForDisplay(givenName)}' for '{commandName}'"; return false; }
 
         // Arity mismatch
         if (flagNode.ValueNodes.Count < flagAttr.MinValues || flagNode.ValueNodes.Count > flagAttr.MaxValues)
-        { errorMessage = $"Flag '--{flagAttr.Name}' for '{commandName}' expects {flagAttr.MinValues}..{flagAttr.MaxValues} values"; return false; }
+        { _errorMessage = $"Flag '--{flagAttr.Name}' for '{commandName}' expects {flagAttr.MinValues}..{flagAttr.MaxValues} values"; return false; }
 
-        return IsValidValues(flagNode.ValueNodes, flagAttr, out errorMessage);
+        return IsValidValues(flagNode.ValueNodes, flagAttr);
     }
 
     bool IsValidArguments(
         string commandName,
         IReadOnlyList<ValueNode> positionalNodes,
-        ArgAttributes? argAttrs,
-        out string errorMessage)
+        ArgAttributes? argAttrs)
     {
-        errorMessage = string.Empty;
+        _errorMessage = string.Empty;
 
         if (argAttrs == null || argAttrs.Count == 0)
         {
             if (positionalNodes.Count == 0) return true;
-            errorMessage = $"Command '{commandName}' does not accept positional arguments: '{string.Join(" ", positionalNodes.Select(v => v.Value))}'";
+            _errorMessage = $"Command '{commandName}' does not accept positional arguments: '{string.Join(" ", positionalNodes.Select(v => v.Value))}'";
             return false;
         }
 
         // Only the last argument may be variadic (MaxValues == int.MaxValue)
         for (var i = 0; i < argAttrs.Count - 1; i++)
             if (argAttrs[i].MaxValues == int.MaxValue)
-            { errorMessage = $"Invalid argument declaration for '{commandName}': only the last argument may be variadic"; return false; }
+            { _errorMessage = $"Invalid argument declaration for '{commandName}': only the last argument may be variadic"; return false; }
 
         // Partition positional values across declared arguments while satisfying minima for remaining args
         var remaining = new Queue<string>(positionalNodes.Select(v => v.Value));
@@ -153,7 +156,7 @@ partial class Parser : IParser
             if (take < min)
             {
                 var name = GetArgDisplayName(attr);
-                errorMessage = $"Missing required argument '<{name}>' for '{commandName}'";
+                _errorMessage = $"Missing required argument '<{name}>' for '{commandName}'";
                 return false;
             }
 
@@ -163,7 +166,7 @@ partial class Parser : IParser
                 var regex = GetOrCreateRegex(attr.ValueRegexPattern);
                 foreach (var value in remaining.Take(take))
                     if (!regex.IsMatch(value))
-                    { errorMessage = $"Invalid value '{value}' for argument '<{GetArgDisplayName(attr)}>': must match {attr.ValueRegexPattern}"; return false; }
+                    { _errorMessage = $"Invalid value '{value}' for argument '<{GetArgDisplayName(attr)}>': must match {attr.ValueRegexPattern}"; return false; }
             }
 
             // Consume the values for this argument
@@ -173,12 +176,12 @@ partial class Parser : IParser
 
         // Any leftover values are too many
         if (remaining.Count > 0)
-        { errorMessage = $"Too many positional arguments for '{commandName}'"; return false; }
+        { _errorMessage = $"Too many positional arguments for '{commandName}'"; return false; }
 
         return true;
     }
 
-    static int GetMinRequired(ArgumentAttribute attr)
+    static int GetMinRequired(FlagValueAttribute attr)
         => Math.Max(attr.MinValues, attr.IsRequired ? Math.Max(1, attr.MinValues) : attr.MinValues);
 
     static int SumMinForRest(ArgAttributes attrs, int startIndex)
@@ -189,12 +192,12 @@ partial class Parser : IParser
         return total;
     }
 
-    static string GetArgDisplayName(ArgumentAttribute attr)
+    static string GetArgDisplayName(FlagValueAttribute attr)
         => string.IsNullOrWhiteSpace(attr.Name) ? $"arg{attr.Index}" : attr.Name!;
 
-    bool IsValidValues(IReadOnlyList<ValueNode> valueNodes, FlagAttribute flagAttr, out string errorMessage)
+    bool IsValidValues(IReadOnlyList<ValueNode> valueNodes, FlagAttribute flagAttr)
     {
-        errorMessage = string.Empty;
+        _errorMessage = string.Empty;
 
         if (flagAttr.ValueRegexPattern == null)
             return true;
@@ -210,7 +213,7 @@ partial class Parser : IParser
             if (regex.IsMatch(valueNode.Value))
                 continue;
 
-            errorMessage = $"Invalid value '{valueNode.Value}' for '--{flagAttr.Name}': must match {flagAttr.ValueRegexPattern}";
+            _errorMessage = $"Invalid value '{valueNode.Value}' for '--{flagAttr.Name}': must match {flagAttr.ValueRegexPattern}";
             return false;
         }
 
@@ -258,11 +261,11 @@ partial class Parser : IParser
         if (_argAttrsCache.TryGetValue(type, out var cached))
             return cached;
 
-        var list = new List<ArgumentAttribute>();
+        var list = new List<FlagValueAttribute>();
         foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
-            foreach (var attr in prop.GetCustomAttributes(typeof(ArgumentAttribute), inherit: true))
-                if (attr is ArgumentAttribute aa)
+            foreach (var attr in prop.GetCustomAttributes(typeof(FlagValueAttribute), inherit: true))
+                if (attr is FlagValueAttribute aa)
                     list.Add(aa);
         }
 

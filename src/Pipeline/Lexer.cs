@@ -1,15 +1,20 @@
 ﻿using CLX.Core.Nodes;
 using System;
 
-namespace CLX.Core.Lexing;
+namespace CLX.Core.Pipeline;
 
 /// <summary> Lexes raw command-line arguments into trees of <see cref="INode"/>s representing
 /// commands, flags, and values. </summary>
 /// <remarks> Recognizes command names from the provided set and validates flag syntax (single-dash
 /// short names and double-dash long names with kebab-case). </remarks>
-partial class Lexer : ILexer
+partial class Lexer
 {
-    public bool TryCreateCommandNodes(string[] args, HashSet<string> cmdNames, out IReadOnlyList<CommandNode> nodes, out string errorArg)
+    string _errorMessage = string.Empty;
+
+    /// <summary> Gets the most recent error message. </summary>
+    public string ErrorMessage => _errorMessage;
+
+    public bool TryCreateCommandNodes(string[] args, HashSet<string> cmdNames, out IReadOnlyList<CommandNode> nodes)
     {
         var argIndex = 0;
         var cmdList = new List<CommandNode>();
@@ -20,12 +25,12 @@ partial class Lexer : ILexer
         if (argIndex < args.Length)
         {
             nodes = [];
-            errorArg = args[argIndex];
+            _errorMessage = $"Unexpected argument '{args[argIndex]}'";
             return false;
         }
 
         nodes = cmdList.AsReadOnly();
-        errorArg = string.Empty;
+        _errorMessage = string.Empty;
         return true;
     }
 
@@ -57,16 +62,16 @@ partial class Lexer : ILexer
             // `--` stops option parsing; everything after is positional
             if (!stopOptions && token == "--") { stopOptions = true; argIndex++; continue; }
 
-            // If options are still being parsed and this looks like a flag, parse it
-            if (!stopOptions && IsValidFlagSyntax(token))
-            {
-                var flagNode = GetFlagNode(args, ref argIndex, cmdNames, cmdName);
-                if (flagNode != null) { flagNodes.Add(flagNode); continue; }
-                // If a token looked like a flag but didn't parse, treat it as positional
-            }
+            if (stopOptions || !IsValidFlagSyntax(token))
+                continue;
 
-            // Otherwise, treat as a positional value (including tokens that start with '-')
-            positionalNodes.Add(new ValueNode(token));
+            // If options are still being parsed and this looks like a flag, parse it
+            var flagNode = GetFlagNode(args, ref argIndex, cmdNames, cmdName);
+            if (flagNode != null)
+                flagNodes.Add(flagNode);
+            else
+                // If a token looked like a flag but didn't parse, treat it as positional
+                positionalNodes.Add(new ValueNode(token));
             argIndex++;
         }
 
@@ -116,7 +121,14 @@ partial class Lexer : ILexer
     }
 
     static bool StartsWithCompositeCommandName(string[] args, int index, HashSet<string> cmdNames)
-        => TryReadCompositeCommandName(args, index, cmdNames, out _, out var consumed) && consumed > 0;
+    {
+        // Check if the current token is a command name by itself
+        if (index < args.Length && cmdNames.Contains(args[index]))
+            return true;
+            
+        // Or check if it starts a composite command
+        return TryReadCompositeCommandName(args, index, cmdNames, out _, out var consumed) && consumed > 0;
+    }
 
     static bool TryReadCompositeCommandName(
         string[] args,
@@ -226,7 +238,6 @@ partial class Lexer
     const char FLAG_NAME_PREFIX = '-';
     const char ALIAS_KEBAB = '-';
     const int MIN_FLAG_LEN = 2; // e.g. "-f"
-    const int FLAG_ALT_NAME_MAX_LEN = 3; // e.g. "-f"
     const int FLAG_NORMALIZED_INDEX = 2;
     const int FLAG_ALT_NAME_INDEX = 1;
 }

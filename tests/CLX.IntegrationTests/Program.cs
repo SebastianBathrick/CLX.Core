@@ -83,7 +83,7 @@ sealed class EchoCommand : ICommand
     public ITextWriter? ErrorOutput => ConsoleTextWriter.Instance;
     public string WorkingDirectory => string.Empty;
 
-    [Argument(0, Name = "words", MinValues = 1, MaxValues = int.MaxValue)]
+    [FlagValue(0, Name = "words", MinValues = 1, MaxValues = int.MaxValue)]
     private List<string> Words { get; set; } = new();
 
     public int Execute(ICommandContext context, string workingDirectory = "")
@@ -112,7 +112,7 @@ sealed class AddCommand : ICommand
     public ITextWriter? ErrorOutput => ConsoleTextWriter.Instance;
     public string WorkingDirectory => string.Empty;
 
-    [Argument(0, Name = "numbers", MinValues = 1, MaxValues = int.MaxValue)]
+    [FlagValue(0, Name = "numbers", MinValues = 1, MaxValues = int.MaxValue)]
     private List<int> Numbers { get; set; } = new();
 
     public int Execute(ICommandContext context, string workingDirectory = "")
@@ -144,7 +144,7 @@ sealed class GreetCommand : ICommand
     public ITextWriter? ErrorOutput => ConsoleTextWriter.Instance;
     public string WorkingDirectory => string.Empty;
 
-    [Argument(0, Name = "name", IsRequired = true, MinValues = 1, MaxValues = 1)]
+    [FlagValue(0, Name = "name", IsRequired = true, MinValues = 1, MaxValues = 1)]
     private string NameArg { get; set; } = string.Empty;
 
     [Flag("times", AlternateName = "t", MinValues = 1, MaxValues = 1, ValueRegexPattern = "^\\d+$")]
@@ -183,10 +183,10 @@ sealed class ShowArgsCommand : ICommand
     public ITextWriter? ErrorOutput => ConsoleTextWriter.Instance;
     public string WorkingDirectory => string.Empty;
 
-    [Argument(0, Name = "path", IsRequired = true, MinValues = 1, MaxValues = 1)]
+    [FlagValue(0, Name = "path", IsRequired = true, MinValues = 1, MaxValues = 1)]
     private string Path { get; set; } = string.Empty;
 
-    [Argument(1, Name = "rest", MinValues = 0, MaxValues = int.MaxValue)]
+    [FlagValue(1, Name = "rest", MinValues = 0, MaxValues = int.MaxValue)]
     private List<string> Rest { get; set; } = new();
 
     public int Execute(ICommandContext context, string workingDirectory = "")

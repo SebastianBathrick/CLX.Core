@@ -1,8 +1,8 @@
 namespace CLX.Core.Commands;
 
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
-/// <summary> Declares metadata for a positional argument on a command. </summary>
-public sealed class ArgumentAttribute(int index) : Attribute
+/// <summary> Declares metadata for a flag value on a command. </summary>
+public sealed class FlagValueAttribute(int index) : Attribute
 {
     /// <summary> Zero-based position index for this argument. </summary>
     public int Index { get; } = index;

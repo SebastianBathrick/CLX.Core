@@ -439,13 +439,13 @@ sealed class ArgsCommand : ICommand
     public ITextWriter ErrorOutput { get; } = NullTextWriter.Instance;
     public string WorkingDirectory { get; } = string.Empty;
 
-    [Argument(0, Name = "path", IsRequired = true, MinValues = 1, MaxValues = 1)]
+    [FlagValue(0, Name = "path", IsRequired = true, MinValues = 1, MaxValues = 1)]
     private string Path { get; set; } = string.Empty;
 
-    [Argument(1, Name = "count", IsRequired = true, MinValues = 1, MaxValues = 1)]
+    [FlagValue(1, Name = "count", IsRequired = true, MinValues = 1, MaxValues = 1)]
     private int Count { get; set; }
 
-    [Argument(2, Name = "rest", MinValues = 0, MaxValues = int.MaxValue)]
+    [FlagValue(2, Name = "rest", MinValues = 0, MaxValues = int.MaxValue)]
     private List<string> Rest { get; set; } = new();
 
     [Flag("toggle", MinValues = 0, MaxValues = 0)]

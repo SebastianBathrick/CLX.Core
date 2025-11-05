@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace CLX.Core.Parsing;
+namespace CLX.Core.Pipeline.Helpers;
 
 /// <summary>
 /// Provides culture-invariant string to type conversion for primitives, enums and common types.

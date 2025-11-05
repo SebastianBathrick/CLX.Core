@@ -1,8 +1,7 @@
-namespace CLX.Core;
-
-using CLX.Core.Commands;
-using CLX.Core.Parsing;
 using CLX.Core.Writers;
+using CLX.Core.Pipeline.Helpers;
+
+namespace CLX.Core.Commands;
 
 /// <summary> Represents a validated invocation context for a single command. </summary>
 /// <remarks> Produced by the parser and passed to command implementations at execution time. </remarks>

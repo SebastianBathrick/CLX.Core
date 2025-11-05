@@ -250,14 +250,14 @@ sealed class HelpCommand : ICommand
         return list.Count > 0 ? list.AsReadOnly() : null;
     }
 
-    private static IReadOnlyList<ArgumentAttribute>? GetArgumentAttributes(ICommand cmd)
+    private static IReadOnlyList<FlagValueAttribute>? GetArgumentAttributes(ICommand cmd)
     {
         var type = cmd.GetType();
-        var list = new List<ArgumentAttribute>();
+        var list = new List<FlagValueAttribute>();
         foreach (var prop in type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic))
         {
-            foreach (var attr in prop.GetCustomAttributes(typeof(ArgumentAttribute), inherit: true))
-                if (attr is ArgumentAttribute aa)
+            foreach (var attr in prop.GetCustomAttributes(typeof(FlagValueAttribute), inherit: true))
+                if (attr is FlagValueAttribute aa)
                     list.Add(aa);
         }
         if (list.Count == 0) return null;
@@ -265,7 +265,7 @@ sealed class HelpCommand : ICommand
         return list.AsReadOnly();
     }
 
-    private static string FormatArgumentLine(ArgumentAttribute aa)
+    private static string FormatArgumentLine(FlagValueAttribute aa)
     {
         var name = string.IsNullOrWhiteSpace(aa.Name) ? $"arg{aa.Index}" : aa.Name!;
         var values = aa.MinValues == aa.MaxValues ? aa.MinValues.ToString() : $"{aa.MinValues}..{aa.MaxValues}";
